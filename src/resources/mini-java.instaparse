@@ -38,7 +38,15 @@ statement          : "{" ( statement )* "}"
                    | "System.out.println" "(" exp ")" ";"
                    | id "=" exp ";"
                    | id "[" exp "]" "=" exp ";"
+                   | recur-statement
                    ;
+
+return-statement   : "return" exp ";"
+                   ;
+
+recur-statement    : "recur" "("
+                         ( exp ( "," exp )* )?
+                     ")"
 
 exp                : bin-op-exp
                    | array-access
@@ -77,7 +85,7 @@ method-call        : exp "." id "("
                      ")"
                    ;
 
-constructor-call   : "new" id "(" ( exp )? ")"
+constructor-call   : "new" id "(" ")"
                    ;
 
 and-exp            : exp <"&&"> exp
