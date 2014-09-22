@@ -1,65 +1,106 @@
-Goal              :  MainClass ( ClassDeclaration )*
-                  ;
+goal               :  main-class ( class-declaration )*
+                   ;
 
-MainClass         : "class" Identifier "{"
-                        "public" "static" "void" "main" "("
-                            "String" "[" "]" Identifier ")" "{"
-                                Statement
-                            "}"
-                    "}"
-                  ;
+main-class         : "class" id "{"
+                         "public" "static" "void" "main" "("
+                             "String" "[" "]" id ")" "{"
+                                 statement
+                             "}"
+                     "}"
+                   ;
 
-ClassDeclaration  : "class" Identifier ( "extends" Identifier )? "{"
-                        ( VarDeclaration )*
-                        ( MethodDeclaration )*
-                    "}"
-                  ;
+class-declaration  : "class" id ( "extends" id )? "{"
+                         ( var-declaration )*
+                         ( method-declaration )*
+                     "}"
+                   ;
 
-VarDeclaration    : Type Identifier ";"
-                  ;
+var-declaration    : type id ";"
+                   ;
 
-MethodDeclaration : "public" Type Identifier "("
-                        ( Type Identifier ( "," Type Identifier )* )? ")" "{"
-                            ( VarDeclaration )*
-                            ( Statement )*
-                            "return" Expression ";"
-                    "}"
-                  ;
+method-declaration : "public" type id "("
+                         ( type id ( "," type id )* )? ")" "{"
+                             ( var-declaration )*
+                             ( statement )*
+                             "return" exp ";"
+                     "}"
+                   ;
 
-Type              : "int" "[" "]"
-                  | "boolean"
-                  | "int"
-                  | Identifier
-                  ;
+type               : "int" "[" "]"
+                   | "boolean"
+                   | "int"
+                   | id
+                   ;
 
-Statement         : "{" ( Statement )* "}"
-                  | "if" "(" Expression ")" Statement "else" Statement
-                  | "while" "(" Expression ")" Statement
-                  | "System.out.println" "(" Expression ")" ";"
-                  | Identifier "=" Expression ";"
-                  | Identifier "[" Expression "]" "=" Expression ";"
-                  ;
+statement          : "{" ( statement )* "}"
+                   | "if" "(" exp ")" statement "else" statement
+                   | "while" "(" exp ")" statement
+                   | "System.out.println" "(" exp ")" ";"
+                   | id "=" exp ";"
+                   | id "[" exp "]" "=" exp ";"
+                   ;
 
-Expression        : Expression ( "&&" | "<" | "+" | "-" | "*" ) Expression
-                  | Expression "[" Expression "]"
-                  | Expression "." "length"
-                  | Expression "." Identifier "("
-                      ( Expression ( "," Expression )* )?
-                    ")"
-                  | IntegerLiteral
-                  | "true"
-                  | "false"
-                  | Identifier
-                  | "this"
-                  | "new" "int" "[" Expression "]"
-                  | "new" Identifier "(" ")"
-                  | "!" Expression
-                  | "(" Expression ")"
-                  ;
+exp                : bin-op-exp
+                   | array-access
+                   | array-length
+                   | method-call
+                   | int-lit
+                   | "true"
+                   | "false"
+                   | id
+                   | "this"
+                   | array-create
+                   | constructor-call
+                   | "!" exp
+                   | "(" exp ")"
+                   ;
 
-Identifier        : #'[a-zA-Z_][a-zA-Z0-9_]*'
-                  ;
+<bin-op-exp>       : and-exp
+                   | lt-exp
+                   | add-exp
+                   | sub-exp
+                   | mul-exp
+                   | div-exp
+                   ;
 
-IntegerLiteral    : "0"
-                  | #'[1-9][0-9]*'
-                  ;
+array-access       : exp "[" exp "]"
+                   ;
+
+array-length       : exp "." "length"
+                   ;
+
+array-create       : "new" "int" "[" exp "]"
+                   ;
+
+method-call        : exp "." id "("
+                         ( exp ( "," exp )* )?
+                     ")"
+                   ;
+
+constructor-call   : "new" id "(" ( exp )? ")"
+                   ;
+
+and-exp            : exp <"&&"> exp
+                   ;
+
+lt-exp             : exp <"<"> exp
+                   ;
+
+add-exp            : exp <"+"> exp
+                   ;
+
+sub-exp            : exp <"-"> exp
+                   ;
+
+mul-exp            : exp <"*"> exp
+                   ;
+
+div-exp            : exp <"/"> exp
+                   ;
+
+id                 : #'[a-zA-Z_][a-zA-Z0-9_]*'
+                   ;
+
+int-lit            : "0"
+                   | #'[1-9][0-9]*'
+                   ;
