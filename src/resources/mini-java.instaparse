@@ -1,50 +1,78 @@
 goal               :  main-class ( class-declaration )*
                    ;
 
-main-class         : "class" id "{"
+main-class         : "class" id <"{">
                          "public" "static" "void" "main" "("
-                             "String" "[" "]" id ")" "{"
-                                 statement
-                             "}"
-                     "}"
+                             "String" "[" "]" id ")" <"{">
+                                 stat
+                             <"}">
+                     <"}">
                    ;
 
-class-declaration  : "class" id ( "extends" id )? "{"
+class-declaration  : "class" id ( "extends" id )? <"{">
                          ( var-declaration )*
                          ( method-declaration )*
-                     "}"
+                     <"}">
                    ;
 
-var-declaration    : type id ";"
+var-declaration    : type id <";">
                    ;
 
 method-declaration : "public" type id "("
-                         ( type id ( "," type id )* )? ")" "{"
+                         ( type id ( "," type id )* )? ")" <"{">
                              ( var-declaration )*
-                             ( statement )*
-                             "return" exp ";"
-                     "}"
+                             ( stat )*
+                             "return" exp <";">
+                     <"}">
                    ;
 
-type               : "int" "[" "]"
-                   | "boolean"
-                   | "int"
+type               : int-array-type
+                   | bool-type
+                   | int-type
                    | id
                    ;
 
-statement          : "{" ( statement )* "}"
-                   | "if" "(" exp ")" statement "else" statement
-                   | "while" "(" exp ")" statement
-                   | "System.out.println" "(" exp ")" ";"
-                   | id "=" exp ";"
-                   | id "[" exp "]" "=" exp ";"
-                   | recur-statement
+int-array-type     : <"int" "[" "]">
                    ;
 
-return-statement   : "return" exp ";"
+bool-type          : <"boolean">
                    ;
 
-recur-statement    : "recur" "("
+int-type           : <"int">
+                   ;
+
+stat               : <"{"> ( stat )* <"}">
+                   | if-stat
+                   | while-stat
+                   | print-stat
+                   | assign-stat
+                   | assign-array-stat
+                   | recur-stat
+                   ;
+
+if-stat            : <"if"> <"("> exp <")">
+                         stat
+                     <"else">
+                         stat
+                   ;
+
+while-stat         : <"while"> <"("> exp <")">
+                         stat
+                   ;
+
+print-stat         : <"System.out.println"> <"("> exp <")"> <";">
+                   ;
+
+assign-stat        : id <"="> exp <";">
+                   ;
+
+assign-array-stat  : id <"["> exp <"]"> <"="> exp <";">
+                   ;
+
+return-stat        : "return" exp ";"
+                   ;
+
+recur-stat         : "recur" "("
                          ( exp ( "," exp )* )?
                      ")"
 
