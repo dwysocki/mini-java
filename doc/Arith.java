@@ -19,7 +19,7 @@ class Ar
 	b = 2;
 	c = 3;
 
-	return ((a*b)+(b*c))/(a-b);
+	return ((a*b)+(b*c))*(a-b);
 
     }
 }

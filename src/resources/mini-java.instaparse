@@ -1,29 +1,42 @@
-goal               :  main-class ( class-declaration )*
+goal               : main-class ( class-declaration )*
                    ;
 
-main-class         : "class" id <"{">
-                         "public" "static" "void" "main" "("
-                             "String" "[" "]" id ")" <"{">
-                                 stat
-                             <"}">
-                     <"}">
+main-class         : <"class"> class-id <"{"> main-body <"}">
                    ;
 
-class-declaration  : "class" id ( "extends" id )? <"{">
+main-body          : main-method
+                   ;
+
+main-method        : <main-boilerplate> <"{"> stat <"}">
+                   ;
+
+main-boilerplate   : "public" "static" "void" "main" "("
+                         "String" "[" "]" var-id ")"
+                   ;
+
+class-declaration  : <"class"> class-id class-extends <"{">
                          ( var-declaration )*
                          ( method-declaration )*
                      <"}">
                    ;
 
-var-declaration    : type id <";">
+class-extends      : ( <"extends"> class-id )?
                    ;
 
-method-declaration : "public" type id "("
-                         ( type id ( "," type id )* )? ")" <"{">
-                             ( var-declaration )*
-                             ( stat )*
-                             "return" exp <";">
+var-declaration    : type var-id <";">
+                   ;
+
+method-declaration : <"public"> return-type id declare-arg-list <"{">
+                         ( var-declaration )*
+                         ( stat )*
+                         return-stat
                      <"}">
+                   ;
+
+return-type        : type
+                   ;
+
+parameter-type     : type
                    ;
 
 type               : int-array-type
@@ -47,48 +60,44 @@ stat               : <"{"> ( stat )* <"}">
                    | print-stat
                    | assign-stat
                    | assign-array-stat
-                   | recur-stat
                    ;
 
-if-stat            : <"if"> <"("> exp <")">
+if-stat            : <"if" "("> exp <")">
                          stat
                      <"else">
                          stat
                    ;
 
-while-stat         : <"while"> <"("> exp <")">
+while-stat         : <"while" "("> exp <")">
                          stat
                    ;
 
-print-stat         : <"System.out.println"> <"("> exp <")"> <";">
+print-stat         : <"System.out.println" "("> exp <")" ";">
                    ;
 
-assign-stat        : id <"="> exp <";">
+assign-stat        : var-id <"="> exp <";">
                    ;
 
-assign-array-stat  : id <"["> exp <"]"> <"="> exp <";">
+
+
+return-stat        : <"return"> exp <";">
                    ;
 
-return-stat        : "return" exp ";"
-                   ;
-
-recur-stat         : "recur" "("
-                         ( exp ( "," exp )* )?
-                     ")"
 
 exp                : bin-op-exp
                    | array-access
                    | array-length
                    | method-call
+                   | recur-exp
                    | int-lit
-                   | "true"
-                   | "false"
+                   | true
+                   | false
                    | id
-                   | "this"
+                   | this
                    | array-create
                    | constructor-call
-                   | "!" exp
-                   | "(" exp ")"
+                   | not-exp
+                   | paren-exp
                    ;
 
 <bin-op-exp>       : and-exp
@@ -96,24 +105,41 @@ exp                : bin-op-exp
                    | add-exp
                    | sub-exp
                    | mul-exp
-                   | div-exp
                    ;
 
-array-access       : exp "[" exp "]"
+array-access       : exp <"["> array-index <"]">
                    ;
 
-array-length       : exp "." "length"
+array-length       : exp <"." "length">
                    ;
 
-array-create       : "new" "int" "[" exp "]"
+array-create       : <"new" "int" "["> exp <"]">
                    ;
 
-method-call        : exp "." id "("
-                         ( exp ( "," exp )* )?
-                     ")"
+assign-array-stat  : var-id <"["> array-index <"]" "="> exp <";">
                    ;
 
-constructor-call   : "new" id "(" ")"
+array-index        : exp
+                   ;
+
+method-call        : exp <"."> method-id call-arg-list
+                   ;
+
+constructor-call   : <"new"> class-id <"(" ")">
+                   ;
+
+not-exp            : <"!"> exp
+                   ;
+
+paren-exp          : <"("> exp <")">
+                   ;
+
+declare-arg-list   : <"("> ( parameter-type var-id
+                               ( <","> parameter-type var-id )* )? <")">
+                   ;
+
+call-arg-list      : <"("> ( exp
+                               ( <","> exp )* )? <")">
                    ;
 
 and-exp            : exp <"&&"> exp
@@ -131,7 +157,16 @@ sub-exp            : exp <"-"> exp
 mul-exp            : exp <"*"> exp
                    ;
 
-div-exp            : exp <"/"> exp
+recur-exp          : <"recur"> call-arg-list
+                   ;
+
+class-id           : id
+                   ;
+
+method-id          : id
+                   ;
+
+var-id             : id
                    ;
 
 id                 : #'[a-zA-Z_][a-zA-Z0-9_]*'
@@ -139,4 +174,13 @@ id                 : #'[a-zA-Z_][a-zA-Z0-9_]*'
 
 int-lit            : "0"
                    | #'[1-9][0-9]*'
+                   ;
+
+this               : <"this">
+                   ;
+
+true               : <"true">
+                   ;
+
+false              : <"false">
                    ;
