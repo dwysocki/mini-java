@@ -4,6 +4,7 @@
   :license {:name "MIT License"
             :url "http://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.6.0"]
+                 [clj-antlr           "0.2.2"]
                  [instaparse          "1.3.4"]
                  [rhizome             "0.1.8"]]
   :main mini-java.core)
