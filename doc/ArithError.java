@@ -25,7 +25,7 @@ class Ar
 }
 
 class Foo {
-    int bar() {
+    public int bar() {
         int a;
         int b;
         int; c;

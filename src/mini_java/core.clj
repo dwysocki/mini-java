@@ -4,13 +4,16 @@
             [clojure.pprint  :refer [pprint]])
   (:gen-class))
 
-(def grammar "src/resources/MiniJava.g4")
-(def parser  (antlr/parser grammar))
+(def mini-java (antlr/parser "src/resources/MiniJava.g4"
+                             {:throw? false}))
 
 
 (defn -main
   ([source-file & args]
-     (let [ast (parser (clojure.java.io/input-stream source-file))]
+     (let [source-file-stream (slurp source-file)
+           ast                (mini-java source-file-stream)
+           errors             (-> ast meta :errors)]
+       (when (seq errors) (pprint errors))
        (pprint ast))))
 
 
