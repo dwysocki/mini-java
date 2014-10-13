@@ -2,6 +2,38 @@
 
 grammar MiniJava;
 
+/* START:override */
+@members {
+Stack<String> paraphrase = new Stack<String>();
+
+public String
+getErrorMessage(RecognitionException e, String[] tokenNames)
+{
+    List stack = getRuleInvocationStack(e, this.getClass().getName());
+    String msg = null;
+    if (e instanceof NoViableAltException) {
+        NoViableAltException nvae = (NoViableAltException) e;
+        msg = " token=" + e.token +
+              " decision=" + nvae.decisionNumber +
+              " state=" + nvae.stateNumber +
+              " decision=" + nvae.grammarDecisionDescription;
+    } else {
+        msg = super.getErrorMessage(e, tokenName);
+    }
+    return stack + " " + msg;
+}
+
+public String
+getTokenErrorDisplay(Token t)
+{
+    return t.toString();
+}
+
+}
+/* END:override */
+
+
+
 goal
     :   mainClassDeclaration classDeclaration* EOF
     ;
@@ -106,23 +138,30 @@ arrayAssignStatement
     ;
 
 expression
-    :   expression '&&' expression               #andExpression
-    |   expression '<'  expression               #ltExpression
-    |   expression '+'  expression               #addExpression
-    |   expression '-'  expression               #subExpression
-    |   expression '*'  expression               #mulExpression
-    |   expression '[' expression ']'            #arrayAccessExpression
-    |   expression '.' 'length'                  #arrayLengthExpression
+    :   expression '&&' expression
+    |   expression '<'  expression
+    |   expression '+'  expression
+    |   expression '-'  expression
+    |   expression '*'  expression
+    |   expression '[' expression ']'
+    |   expression '.' 'length'
     |   expression '.' ID '(' (expression (',' expression)*)? ')'
-                                                 #methodCallExpression
-    |   INT                                      #intExpression
-    |   booleanLit                               #booleanExpression
-    |   ID                                       #IDExpression
-    |   'this'                                   #thisExpression
-    |   'new' 'int' '[' expression ']'           #arrayInstantiationExpression
-    |   'new' ID '(' ')'                         #objectInstantiationExpression
-    |   '!' expression                           #notExpression
-    |   '(' expression ')'                       #parenExpression
+    |   INT
+    |   booleanLit
+    |   ID
+    |   'this'
+    |   'new' 'int' '[' expression ']'
+    |   'new' ID '(' ')'
+//  |   'new' ID '(' ')' ')'
+//      { notifyErrorListeners("Too many parentheses"); }
+//  |   'new' ID '('
+//      { notifyErrorListeners("Missing closing ')'"); }
+    |   '!' expression
+    |   '(' expression ')'
+//  |   '(' expression ')' ')'
+//      { notifyErrorListeners("Too many parentheses"); }
+//  |   '(' expression
+//      { notifyErrorListeners("Missing closing ')'"); }
     ;
 
 ID

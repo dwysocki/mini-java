@@ -28,9 +28,12 @@ class Foo {
     public int bar() {
         int a;
         int b;
-        int; c;
+        int c;
 
         return 2;
     }
-
+    public int () {
+        int c;
+        return (4 + 3);
+    }
 }

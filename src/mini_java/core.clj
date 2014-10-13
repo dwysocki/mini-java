@@ -1,19 +1,21 @@
 (ns mini-java.core
-  (:require [clj-antlr.core  :as antlr]
-          ; [instaparse.core :refer [visualize]]
-            [clojure.pprint  :refer [pprint]])
+  (:require [mini-java.parser :as    parser]
+            [rhizome.viz      :as    rhizome]
+            [clojure.pprint   :refer [pprint]])
   (:gen-class))
 
-(def mini-java (antlr/parser "src/resources/MiniJava.g4"
-                             {:throw? false}))
+
 
 
 (defn -main
   ([source-file & args]
      (let [source-file-stream (slurp source-file)
-           ast                (mini-java source-file-stream)
-           errors             (-> ast meta :errors)]
+           ast                (parser/mini-java source-file-stream)
+           errors             (parser/errors ast)]
+       (println "ERRORS:")
        (when (seq errors) (pprint errors))
+       (println)
+       (println "AST:")
        (pprint ast))))
 
 
