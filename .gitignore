@@ -12,7 +12,7 @@ pom.xml.asc
 
 # ANTLR stuff
 
-/gen-src/
+/src/java/
 
 # emacs autosave
 *~
