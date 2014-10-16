@@ -4,7 +4,10 @@
   :license {:name "MIT License"
             :url "http://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [clj-antlr           "0.2.2"]
-                 [instaparse          "1.3.4"]
                  [rhizome             "0.1.8"]]
+  :plugins [[lein-antlr4 "0.1.0-SNAPSHOT"]]
+  :hooks [leiningen.antlr4]
+  :antlr-src-dir  "src/antlr"
+  :antlr-dest-dir "src/java/antlr"
+  :java-source-paths ["src/java/antlr/src/java/antlr"]
   :main mini-java.core)

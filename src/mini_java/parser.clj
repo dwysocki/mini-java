@@ -1,8 +1,21 @@
 (ns mini-java.parser
-  (:require [clj-antlr.core :as antlr]))
+  (:import [mini_java.antlr
+            MiniJavaParser MiniJavaLexer MiniJavaBaseListener]
+           [org.antlr.v4.runtime
+            ANTLRInputStream CommonTokenStream]
+           [org.antlr.v4.runtime.tree
+            ParseTree ParseTreeWalker]))
 
-(def mini-java (antlr/parser "src/resources/MiniJava.g4"
-                             {:throw? false}))
+(defn mini-java [source-file]
+  (let [input  (new ANTLRInputStream  source-file)
+        lexer  (new MiniJavaLexer     input)
+        tokens (new CommonTokenStream lexer)
+        parser (new MiniJavaParser    tokens)]
+    parser))
 
-(def errors
-  (comp :errors meta))
+
+;; (def mini-java (antlr/parser "src/resources/MiniJava.g4"
+;;                              {:throw? false}))
+
+;; (def errors
+;;   (comp :errors meta))

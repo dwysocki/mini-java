@@ -10,5 +10,9 @@ pom.xml.asc
 .lein-plugins/
 .lein-failures
 
+# ANTLR stuff
+
+/gen-src/
+
 # emacs autosave
 *~

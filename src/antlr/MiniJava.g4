@@ -2,7 +2,19 @@
 
 grammar MiniJava;
 
+@header {
+    package mini_java.antlr;
+}
+
+/*
+@lexer::header {
+    package mini_java.antlr;
+}
+*/
+
+
 /* START:override */
+/*
 @members {
 Stack<String> paraphrase = new Stack<String>();
 
@@ -30,6 +42,7 @@ getTokenErrorDisplay(Token t)
 }
 
 }
+*/
 /* END:override */
 
 
