@@ -27,7 +27,7 @@ class Ar
 class Foo {
     public int bar() {
         int a;
-        int b;
+        int ;b;
         int c;
 
         return 2;

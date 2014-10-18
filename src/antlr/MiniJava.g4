@@ -6,47 +6,6 @@ grammar MiniJava;
     package mini_java.antlr;
 }
 
-/*
-@lexer::header {
-    package mini_java.antlr;
-}
-*/
-
-
-/* START:override */
-/*
-@members {
-Stack<String> paraphrase = new Stack<String>();
-
-public String
-getErrorMessage(RecognitionException e, String[] tokenNames)
-{
-    List stack = getRuleInvocationStack(e, this.getClass().getName());
-    String msg = null;
-    if (e instanceof NoViableAltException) {
-        NoViableAltException nvae = (NoViableAltException) e;
-        msg = " token=" + e.token +
-              " decision=" + nvae.decisionNumber +
-              " state=" + nvae.stateNumber +
-              " decision=" + nvae.grammarDecisionDescription;
-    } else {
-        msg = super.getErrorMessage(e, tokenName);
-    }
-    return stack + " " + msg;
-}
-
-public String
-getTokenErrorDisplay(Token t)
-{
-    return t.toString();
-}
-
-}
-*/
-/* END:override */
-
-
-
 goal
     :   mainClassDeclaration classDeclaration* EOF
     ;
