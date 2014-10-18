@@ -8,6 +8,6 @@
   :plugins [[lein-antlr4 "0.1.0-SNAPSHOT"]]
   :hooks [leiningen.antlr4]
   :antlr-src-dir  "src/antlr"
-  :antlr-dest-dir "src/java/antlr"
+  :antlr-dest-dir ""
   :java-source-paths ["src/java/antlr/src/java/antlr"]
   :main mini-java.core)

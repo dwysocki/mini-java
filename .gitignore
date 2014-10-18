@@ -12,7 +12,8 @@ pom.xml.asc
 
 # ANTLR stuff
 
-/src/java/
+/src/antlr/*
+!/src/antlr/*.g4
 
 # emacs autosave
 *~

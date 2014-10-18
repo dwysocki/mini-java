@@ -1,5 +1,5 @@
 (ns mini-java.parser
-  (:import [mini_java.antlr
+  (:import [mini-java.antlr
             MiniJavaParser MiniJavaLexer MiniJavaBaseListener]
            [org.antlr.v4.runtime
             ANTLRInputStream CommonTokenStream]
