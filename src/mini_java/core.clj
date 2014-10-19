@@ -7,4 +7,5 @@
 
 (defn -main
   ([source-file & args]
-     (parser/mini-java source-file)))
+     (parser/mini-java source-file)
+     nil))

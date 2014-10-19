@@ -111,29 +111,37 @@ arrayAssignStatement
 
 expression
     :   expression '&&' expression
+    # andExpression
     |   expression '<'  expression
+    # ltExpression  
     |   expression '+'  expression
+    # addExpression
     |   expression '-'  expression
+    # subExpression
     |   expression '*'  expression
+    # mulExpression
     |   expression '[' expression ']'
+    # arrayAccessExpression
     |   expression '.' 'length'
+    # arrayLengthExpression
     |   expression '.' ID '(' (expression (',' expression)*)? ')'
+    # methodCallExpression
     |   INT
+    # intLitExpression
     |   booleanLit
+    # booleanLitExpression
     |   ID
+    # identifierExpression
     |   'this'
+    # thisExpression
     |   'new' 'int' '[' expression ']'
+    # arrayInstantiationExpression
     |   'new' ID '(' ')'
-//  |   'new' ID '(' ')' ')'
-//      { notifyErrorListeners("Too many parentheses"); }
-//  |   'new' ID '('
-//      { notifyErrorListeners("Missing closing ')'"); }
+    # objectInstantiationExpression
     |   '!' expression
+    # notExpression
     |   '(' expression ')'
-//  |   '(' expression ')' ')'
-//      { notifyErrorListeners("Too many parentheses"); }
-//  |   '(' expression
-//      { notifyErrorListeners("Missing closing ')'"); }
+    # parenExpression
     ;
 
 ID
@@ -152,4 +160,12 @@ booleanLit
 
 WS
     :   [ \r\t\n]+ -> skip
+    ;
+
+COMMENT
+    : '/*' .*? '*/' -> skip
+    ;
+
+LINE_COMMENT
+    : '//' ~[\r\n]* -> skip
     ;

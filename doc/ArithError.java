@@ -1,6 +1,6 @@
-class ArithError
+class; ArithError
 {
-    public static void main(String[] args)
+    public static void main(String[ args)
     {
         System.out.println(new Ar().compute());
     }
@@ -27,7 +27,7 @@ class Ar
 class Foo {
     public int bar() {
         int a;
-        int ;b;
+    	int ;b;
         int c;
 
         return 2;
