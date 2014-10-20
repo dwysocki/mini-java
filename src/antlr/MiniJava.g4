@@ -41,8 +41,22 @@ varDeclaration
     ;
 
 methodDeclaration
-    :   'public' type ID formalParameters
-        '{' varDeclaration* statement* 'return' expression ';' '}'
+    :   ( 'public' type ID formalParameters
+        /* illegal method declarations */
+        |          type ID formalParameters
+            {notifyErrorListeners("method declaration without public");}
+        | 'public'      ID formalParameters
+            {notifyErrorListeners("method declaration without return type");}
+        | 'public' type    formalParameters
+            {notifyErrorListeners("method declaration without method name");}
+        | 'public' type ID
+            {notifyErrorListeners("method declaration without argument list");}
+        )
+        '{'
+            varDeclaration*
+            statement*
+            returnStatement
+        '}'
     ;
 
 formalParameters
@@ -109,6 +123,19 @@ arrayAssignStatement
     :   ID '[' expression ']' '=' expression ';'
     ;
 
+returnStatement
+    :   simpleReturnStatement
+    |   recurStatement
+    ;
+
+simpleReturnStatement
+    :   'return' expression ';'
+    ;
+
+recurStatement
+    :   'recur' expression '?' methodArgumentList ':' expression ';'
+    ;
+
 expression
     :   expression '&&' expression
     # andExpression
@@ -124,7 +151,7 @@ expression
     # arrayAccessExpression
     |   expression '.' 'length'
     # arrayLengthExpression
-    |   expression '.' ID '(' (expression (',' expression)*)? ')'
+    |   expression '.' ID methodArgumentList
     # methodCallExpression
     |   INT
     # intLitExpression
@@ -142,6 +169,10 @@ expression
     # notExpression
     |   '(' expression ')'
     # parenExpression
+    ;
+
+methodArgumentList
+    :   '(' (expression (',' expression)*)? ')'
     ;
 
 ID

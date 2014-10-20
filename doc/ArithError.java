@@ -34,6 +34,30 @@ class Foo {
     }
     public int () {
         int c;
-        return (4 + 3);
+        return (4 + );
     }
+
+    public int baz(int x) {
+        recur x < 0 ?
+              (x + 1) :
+              x;
+    }
+}
+
+class Klass {
+    public int a() {
+        return (2 + ) - ( + 2);
+    }
+
+    public int b() {
+        return +;
+    }
+
+    public int c(int x) {
+        return x*x*x;
+    }
+
+    public int d() {
+        return x*;
+    
 }

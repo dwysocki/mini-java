@@ -23,11 +23,17 @@
   (let [tokens     (.getInputStream recognizer)
         lines      (-> tokens
                        .getTokenSource .getInputStream .toString
-                       (.split "\n"))
-        error-line (aget lines (dec line))
-        underline  (underline-str error-line column)]
-    (println error-line)
-    (println underline)))
+                       (.split "\n"))]
+    (if (> line (alength lines))
+      ; reached EOF
+      (do
+        (println "<EOF>")
+        (println "^"))
+      ; did not reach EOF
+      (let [error-line (aget lines (dec line))
+            underline  (underline-str error-line column)]
+        (println error-line)
+        (println underline)))))
 
 (defn print-error [parser msg line column]
   (let [filename (parser-filename parser)]
