@@ -7,7 +7,9 @@ grammar MiniJava;
 }
 
 goal
-    :   mainClassDeclaration classDeclaration* EOF
+    :   mainClassDeclaration
+        classDeclaration*
+        EOF
     ;
 
 mainClassDeclaration
@@ -54,8 +56,7 @@ methodDeclaration
         )
         '{'
             varDeclaration*
-            statement*
-            returnStatement
+            statement+
         '}'
     ;
 
@@ -92,6 +93,30 @@ intType
 
 statement
     :   '{' statement* '}'
+    # nestedStatement
+    |   'if' '(' expression ')'
+            statement
+        'else'
+            statement
+    # ifElseStatement
+    |   'while' '(' expression ')'
+            statement
+    # whileStatement
+    |   'System.out.println' '(' expression ')' ';'
+    # printStatement
+    |   ID '=' expression ';'
+    # assignStatement
+    |   ID '[' expression ']' '=' expression ';'
+    # arrayAssignStatement
+    |   'return' expression ';'
+    # returnStatement
+    |   'recur' expression '?' methodArgumentList ':' expression ';'
+    # recurStatement
+    ;
+
+/*
+statement
+    :   '{' statement* '}'
     |   ifElseStatement
     |   whileStatement
     |   printStatement
@@ -123,6 +148,7 @@ arrayAssignStatement
     :   ID '[' expression ']' '=' expression ';'
     ;
 
+
 returnStatement
     :   simpleReturnStatement
     |   recurStatement
@@ -135,7 +161,7 @@ simpleReturnStatement
 recurStatement
     :   'recur' expression '?' methodArgumentList ':' expression ';'
     ;
-
+*/
 expression
     :   expression '&&' expression
     # andExpression

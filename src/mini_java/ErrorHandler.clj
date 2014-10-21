@@ -26,30 +26,29 @@
 
 (defn -reportInputMismatch [this parser exception]
   (let [token     (.getOffendingToken exception)
-        token-str (.parentGetTokenErrorDisplay this token)
-        [line column] (util/token-line-and-column token)
+        token-str (str "'" (.getText token) "'")
         expecting (expecting-str parser exception)
         msg (if expecting
               (str "found " token-str ", " expecting)
               (str "unexpected " token-str))]
-    (print-error parser msg line column)))
+    (.notifyErrorListeners parser msg)))
 
 (defn -reportMissingToken [this parser]
-  (when-not (.inRecoveryMode this) (.parentBeginErrorCondition this parser))
-  (let [token (.getCurrentToken parser)
-        expecting (.parentGetExpectedTokens this parser)
-        [line column] (util/token-line-and-column token)
-        msg (str "missing "
-                 (.toString expecting
-                            (.getTokenNames parser)))]
-    (print-error parser msg line column)))
+  (when-not (.inErrorRecoveryMode this parser)
+    (.parentBeginErrorCondition this parser)
+    (let [token (.getCurrentToken parser)
+          expecting (.parentGetExpectedTokens this parser)
+          msg (str "missing "
+                   (.toString expecting
+                              (.getTokenNames parser)))]
+      (.notifyErrorListeners parser msg))))
 
 (defn -reportUnwantedToken [this parser]
-  (when-not (.inRecoveryMode this) (.parentBeginErrorCondition this parser))
-  (let [token (.getCurrentToken parser)
-        [line column] (util/token-line-and-column token)
-        msg (str "extraneous " (.getText token) " inserted")]
-    (print-error parser msg line column)))
+  (when-not (.inErrorRecoveryMode this parser)
+    (.parentBeginErrorCondition this parser)
+    (let [token (.getCurrentToken parser)
+          msg (str "extraneous '" (.getText token) "' inserted")]
+      (.notifyErrorListeners parser msg))))
 
 (defn- alternative-msg [token context]
   (let [token-str (.getText token)]
@@ -65,7 +64,5 @@
 (defn -reportNoViableAlternative [this parser exception]
   (let [token (.getCurrentToken parser)
         context (.getContext parser)
-        [line column] (util/token-line-and-column token)
         msg (alternative-msg token context)]
-    (print-error parser msg line column)))
-
+    (.notifyErrorListeners parser msg)))

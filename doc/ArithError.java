@@ -30,16 +30,21 @@ class Foo {
     	int ;b;
         int c;
 
-        return 2;
-    }
-    public int () {
+        if (true)
+            a = 1;
+        else
+            flibflab++32+-;
+
+        return 3;
+    }}
+    public int foo () {
         int c;
         return (4 + );
     }
 
-    public int baz(int x) {
+    public int baz(int x, int y) {
         recur x < 0 ?
-              (x + 1) :
+              (x + 1, y + 1) :
               x;
     }
 }
@@ -47,17 +52,37 @@ class Foo {
 class Klass {
     public int a() {
         return (2 + ) - ( + 2);
-    }
+    }{
 
     public int b() {
         return +;
     }
 
     public int c(int x) {
-        return x*x*x;
+        return x*x*x+(3*2;
     }
 
     public int d() {
-        return x*;
+        return x*; 2+2=3
+    }
+}
+
+/* check out muh comments */
+
+class Declarations {
+    public      a() {
+        return 1;
+    }
+
+    public int   () {
+        return 2;
+    }
     
+    int        c () {
+        return 3;
+    }
+
+    public int d    {
+        return 4;
+
 }
