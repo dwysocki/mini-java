@@ -1,6 +1,6 @@
 (ns mini-java.parser
   (:import [mini-java
-            ErrorHandler ErrorListener MiniJavaParser]
+            ErrorHandler ErrorListener MiniJavaParser MiniJavaVisitor]
            [mini_java.antlr
             MiniJavaLexer MiniJavaBaseListener]
            [org.antlr.v4.runtime
@@ -16,5 +16,6 @@
                  (.removeErrorListeners)
                  (.addErrorListener (new ErrorListener))
                  (.setErrorHandler  (new ErrorHandler)))
-        tree   (.goal parser)]
-    tree))
+        tree   (.goal parser)
+        visitor (new MiniJavaVisitor)]
+    (.visit visitor tree)))

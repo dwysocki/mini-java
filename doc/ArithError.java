@@ -35,8 +35,9 @@ class Foo {
         else
             flibflab++32+-;
 
+        Glib glab flib flab
         return 3;
-    }}
+    }
     public int foo () {
         int c;
         return (4 + );
@@ -68,7 +69,7 @@ class Klass {
 }
 
 /* check out muh comments */
-
+// line comments too!
 class Declarations {
     public      a() {
         return 1;
