@@ -37,103 +37,72 @@
 (defn- var-declaration? [[k v]]
   (= k :var-declaration))
 
-(defmulti ast (comp type->key type))
+(defn- method-declaration? [[k v]]
+  (= k :method-declaration))
 
-(def ^{:private true} typeless-ast
-  (comp remove-type ast))
+(defmulti ast (comp type->key type))
 
 (defmethod ast :default [node]
   [(type->key (type node)), node])
 
 (defmethod ast :terminal-node [node]
-  [:terminal-node, (-> node .-symbol .getText)])
+  (-> node .-symbol .getText))
 
-(defmethod ast :int-lit-expression [node]
-  [:int-lit-expression,
-   (-> node
-       (.getChild 0)
-       typeless-ast
-       Integer.)])
 
-(defmethod ast :boolean-expression [node]
-  [:boolean-expression,
-   (-> node
-       (.getChild 0)
-       typeless-ast
-       Boolean.)])
-
-(defmethod ast :type [node]
-  [:type,
-   (-> node
-       (.getChild 0)
-       typeless-ast)])
-
-(defmethod ast :int-type [node]
-  [:int-type, :int])
-
-(defmethod ast :int-array-type [node]
-  [:int-array-type, :int-array])
-
-(defmethod ast :boolean-type [node]
-  [:boolean-type, :boolean])
 
 (defmethod ast :goal [node]
   (let [children   (children node)
         main-class (first children)
         classes    (-> children rest butlast)]
-    [:goal,
-     {:main    (typeless-ast main-class),
-      :classes (map typeless-ast classes)}]))
+    {:main    (ast main-class),
+     :classes (map ast classes)}))
 
 (defmethod ast :main-class-declaration [node]
-  [:main-class-declaration
-   {:name (typeless-ast (.getChild node 1)),
-    :body (typeless-ast (.getChild node 2))}])
+  {:name (ast (.getChild node 1)),
+   :body (ast (.getChild node 2))})
 
 (defmethod ast :class-declaration [node]
   (let [child? (= 5 (.getChildCount node))
-        body-idx (if child? 4 2)]
-    [:class-declaration,
-     {:name   (typeless-ast (.getChild node 1)),
-      :parent (when child? (typeless-ast (.getChild node 3))),
-      :body   (typeless-ast (.getChild node body-idx))}]))
+        body-idx (if child? 4 2)
+        {:keys [vars methods]} (ast (.getChild node body-idx))]
+    {:name    (ast (.getChild node 1)),
+     :parent  (when child? (ast (.getChild node 3))),
+     :vars    (map remove-type vars),
+     :methods (map remove-type methods)}))
 
 (defmethod ast :main-class-body [node]
-  (let [body (.getChild node 1)]
-    [:main-class-body,
-     (typeless-ast body)]))
+  (ast (.getChild node 1)))
 
 (defmethod ast :main-method [node]
-  [:main-method,
-   (ast (.getChild node 2))])
+  (ast (.getChild node 2)))
 
 (defmethod ast :class-body [node]
-  (let [children (children node)
-        declarations (map ast (remove-braces children))]
-    [:class-body,
-     ; do stuff with this
-     declarations]))
+  (let [children     (children node)
+        declarations (map ast (remove-braces children))
+        vars         (filter var-declaration? declarations)
+        methods      (filter method-declaration? declarations)]
+    {:vars    vars,
+     :methods methods}))
 
 (defmethod ast :method-declaration [node]
-  [:method-declaration,
-   {:name (typeless-ast (.getChild node 2)),
-    :type (typeless-ast (.getChild node 1)),
-    :args (typeless-ast (.getChild node 3)),
-    :body (typeless-ast (.getChild node 4))}])
+  (let [{:keys [vars statements]} (ast (.getChild node 4))]
+    [:method-declaration,
+     {:name (ast (.getChild node 2)),
+      :type (ast (.getChild node 1)),
+      :args (ast (.getChild node 3)),
+      :vars vars,
+      :statements statements}]))
 
 (defmethod ast :method-body [node]
   (let [children (remove-braces (children node))
-        body-nodes (map ast children)
-        vars       (filter var-declaration? body-nodes)
-        statements (filter (comp not var-declaration?) body-nodes)]
-    [:method-body,
-     {:vars       vars
-      :statements statements}]))
+        body-nodes (map ast children)]
+    {:vars       (map remove-type (filter var-declaration? body-nodes))
+     :statements (filter (comp not var-declaration?) body-nodes)}))
 
 (defmethod ast :var-declaration [node]
   [:var-declaration,
-   {:name (typeless-ast (.getChild node 1)),
-               :type (typeless-ast (.getChild node 0))}])
+   {:name (ast (.getChild node 1)),
+    :type (ast (.getChild node 0))}])
 
 (defmethod ast :nested-statement [node]
   [:nested-statement,
@@ -144,26 +113,151 @@
 
 (defmethod ast :if-else-statement [node]
   [:if-else-statement
-   {:pred (ast (.getChild node 2))
-    :then (ast (.getChild node 4))
+   {:pred (ast (.getChild node 2)),
+    :then (ast (.getChild node 4)),
     :else (ast (.getChild node 6))}])
 
+(defmethod ast :while-statement [node]
+  [:while-statement,
+   {:pred (ast (.getChild node 2)),
+    :body (ast (.getChild node 4))}])
+
 (defmethod ast :print-statement [node]
-  [:print-statement, (typeless-ast (.getChild node 2))])
+  [:print-statement,
+   (ast (.getChild node 2))])
 
-(defmethod ast :method-call-expression [node]
-  [:method-call-expression,
-   {:caller (ast          (.getChild node 0)),
-    :method (typeless-ast (.getChild node 2)),
-    :args   (typeless-ast (.getChild node 3))}])
+(defmethod ast :assign-statement [node]
+  [:assign-statement,
+   {:target (ast (.getChild node 0)),
+    :source (ast (.getChild node 2))}])
 
-(defmethod ast :object-instantiation-expression [node]
-  [:object-instantiation-expression,
-   (typeless-ast (.getChild node 1))])
+(defmethod ast :array-assign-statement [node]
+  [:array-assign-statement,
+   {:target (ast (.getChild node 0)),
+    :index  (ast (.getChild node 2)),
+    :source (ast (.getChild node 5))}])
+
+(defmethod ast :return-statement [node]
+  [:return-statement,
+   (ast (.getChild node 1))])
+
+(defmethod ast :recur-statement [node]
+  [:recur-statement,
+   {:pred (ast (.getChild node 1)),
+    :args (ast (.getChild node 3)),
+    :base (ast (.getChild node 5))}])
+
+
 
 
 (defmethod ast :method-argument-list [node]
   (let [children (children node)
         args     (take-nth 2 (-> children rest butlast))]
-    [:method-argument-list,
-     (map typeless-ast args)]))
+    (map ast args)))
+
+(defmethod ast :formal-parameters [node]
+  (let [length (.getChildCount node)
+        params (if (= 3 length)
+                 (ast (.getChild node 1))
+                 [])]
+    [:formal-parameters,
+     params]))
+
+(defmethod ast :formal-parameter-list [node]
+  (->> node
+       children
+       (take-nth 2) ; ignore commas
+       (map ast)))
+
+(defmethod ast :formal-parameter [node]
+  {:type (ast (.getChild node 0)),
+   :name (ast (.getChild node 1))})
+
+
+(defmethod ast :type [node]
+  (ast (.getChild node 0)))
+
+(defn binary-expression [node]
+  {:left  (ast (.getChild node 0)),
+   :right (ast (.getChild node 2))})
+
+(defmethod ast :and-expression [node]
+  [:and-expression,
+   (binary-expression node)])
+
+(defmethod ast :lt-expression [node]
+  [:lt-expression,
+   (binary-expression node)])
+
+(defmethod ast :add-expression [node]
+  [:add-expression,
+   (binary-expression node)])
+
+(defmethod ast :sub-expression [node]
+  [:sub-expression,
+   (binary-expression node)])
+
+(defmethod ast :mul-expression [node]
+  [:mul-expression,
+   (binary-expression node)])
+
+(defmethod ast :array-access-expression [node]
+  [:array-access-expression,
+   {:array (ast (.getChild node 0)),
+    :index (ast (.getChild node 2))}])
+
+(defmethod ast :array-length-expression [node]
+  [:array-length-expression,
+   (ast (.getChild node 0))])
+
+(defmethod ast :method-call-expression [node]
+  [:method-call-expression,
+   {:caller (ast (.getChild node 0)),
+    :method (ast (.getChild node 2)),
+    :args   (ast (.getChild node 3))}])
+
+(defmethod ast :int-lit-expression [node]
+  [:int-lit-expression,
+   (-> node
+       (.getChild 0)
+       ast
+       Integer.)])
+
+(defmethod ast :boolean-expression [node]
+  [:boolean-expression,
+   (-> node
+       (.getChild 0)
+       ast
+       Boolean.)])
+
+(defmethod ast :identifier-expression [node]
+  [:identifier-expression,
+   (ast (.getChild node 0))])
+
+(defmethod ast :this-expression [node]
+  :this)
+
+(defmethod ast :array-instantiation-expression [node]
+  [:array-instantiation-expression,
+   (ast (.getChild node 3))])
+
+(defmethod ast :object-instantiation-expression [node]
+  [:object-instantiation-expression,
+   (ast (.getChild node 1))])
+
+(defmethod ast :not-expression [node]
+  [:not-expression,
+   (ast (.getChild node 1))])
+
+(defmethod ast :paren-expression [node]
+  (ast (.getChild node 1)))
+
+
+(defmethod ast :int-type [node]
+  :int)
+
+(defmethod ast :int-array-type [node]
+  :int-array)
+
+(defmethod ast :boolean-type [node]
+  :boolean)
