@@ -1,6 +1,5 @@
 (ns mini-java.parser
   (:require [mini-java.ast  :as ast]
-            [mini-java.keywords :as kw]
             [clojure.pprint :refer [pprint]])
   (:import [mini-java
             ErrorHandler ErrorListener MiniJavaParser MiniJavaVisitor]
@@ -24,5 +23,4 @@
     (if (pos? errors)
       (println errors "errors occured.")
       (let [ast (ast/ast tree)]
-        (println kw/type->key)
         (pprint ast)))))
