@@ -177,7 +177,10 @@
 (defmethod ast :type [node]
   (ast (.getChild node 0)))
 
-(defn binary-expression [node]
+(defn- unary-expression [node]
+  (ast (.getChild node 1)))
+
+(defn- binary-expression [node]
   {:left  (ast (.getChild node 0)),
    :right (ast (.getChild node 2))})
 
@@ -247,7 +250,11 @@
 
 (defmethod ast :not-expression [node]
   [:not-expression,
-   (ast (.getChild node 1))])
+   (unary-expression node)])
+
+(defmethod ast :neg-expression [node]
+  [:neg-expression,
+   (unary-expression node)])
 
 (defmethod ast :paren-expression [node]
   (ast (.getChild node 1)))

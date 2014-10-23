@@ -149,6 +149,8 @@ expression
     # objectInstantiationExpression
     |   '!' expression
     # notExpression
+    |   '-' expression
+    # negExpression
     |   '(' expression ')'
     # parenExpression
     ;
