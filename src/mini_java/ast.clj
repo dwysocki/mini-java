@@ -88,16 +88,27 @@
     declarations))
 
 (defmethod ast :method-declaration [node]
-  (let [children (children node)]
-    {:name (ast (.getChild node 2)),
-     :type (ast (.getChild node 1)),
-     :args (ast (.getChild node 3)),
-     :body (ast (.getChild node 4))}))
+  {:name (ast (.getChild node 2)),
+   :type (ast (.getChild node 1)),
+   :args (ast (.getChild node 3)),
+   :body (ast (.getChild node 4))})
 
 (defmethod ast :method-body [node]
-  (let [children (remove-braces (children node))]
-    children))
+  (let [children (remove-braces (children node))
+        body     (map ast children)]
+    (reduce (fn [r [k v]]
+              (update-in r [(case k
+                              :var-declaration :vars
+                              :statements)]
+                         conj v))
+            {:vars       []
+             :statements []}
+            body)))
 
+(defmethod ast :var-declaration [node]
+  (let [value {:name (.getChild node 1),
+               :type (.getChild node 0)}]
+    [:var-declaration value]))
 
 (defmethod ast :nested-statement [node]
   (let [children (children node)
