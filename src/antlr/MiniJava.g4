@@ -54,7 +54,11 @@ methodDeclaration
         | 'public' type ID
             {notifyErrorListeners("method declaration without argument list");}
         )
-        '{'
+        methodBody
+    ;
+
+methodBody
+    :   '{'
             varDeclaration*
             statement+
         '}'
@@ -114,54 +118,6 @@ statement
     # recurStatement
     ;
 
-/*
-statement
-    :   '{' statement* '}'
-    |   ifElseStatement
-    |   whileStatement
-    |   printStatement
-    |   assignStatement
-    |   arrayAssignStatement
-    ;
-
-ifElseStatement
-    :   'if' '(' expression ')'
-            statement
-        'else'
-            statement
-    ;
-
-whileStatement
-    :   'while' '(' expression ')'
-            statement
-    ;
-
-printStatement
-    :   'System.out.println' '(' expression ')' ';'
-    ;
-
-assignStatement
-    :   ID '=' expression ';'
-    ;
-
-arrayAssignStatement
-    :   ID '[' expression ']' '=' expression ';'
-    ;
-
-
-returnStatement
-    :   simpleReturnStatement
-    |   recurStatement
-    ;
-
-simpleReturnStatement
-    :   'return' expression ';'
-    ;
-
-recurStatement
-    :   'recur' expression '?' methodArgumentList ':' expression ';'
-    ;
-*/
 expression
     :   expression '&&' expression
     # andExpression
