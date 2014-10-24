@@ -12,8 +12,6 @@
   :antlr-dest-dir ""
   :antlr-options  {:visitor true}
   :java-source-paths ["src/antlr"]
-  :aot [mini-java.MiniJavaParser
-        mini-java.MiniJavaVisitor
-        mini-java.ErrorListener
+  :aot [mini-java.ErrorListener
         mini-java.ErrorHandler]
   :main mini-java.core)

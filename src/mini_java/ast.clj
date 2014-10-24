@@ -156,12 +156,10 @@
     (map ast args)))
 
 (defmethod ast :formal-parameters [node]
-  (let [length (.getChildCount node)
-        params (if (= 3 length)
-                 (ast (.getChild node 1))
-                 [])]
-    [:formal-parameters,
-     params]))
+  (let [length (.getChildCount node)]
+    (if (= 3 length)
+      (ast (.getChild node 1))
+      [])))
 
 (defmethod ast :formal-parameter-list [node]
   (->> node

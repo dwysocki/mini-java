@@ -17,9 +17,13 @@ class A {
 }
 
 class B {
+    int foo;
+    int bar;
     public int square(int x) {
         return x * x;
     }
 }
 
-class C extends B {}
+class C extends B {
+    int baz;
+}

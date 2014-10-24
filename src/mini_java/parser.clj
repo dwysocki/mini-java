@@ -1,14 +1,13 @@
 (ns mini-java.parser
   (:require [mini-java.ast  :as ast]
+            [mini-java.type-check :as type-check]
             [clojure.pprint :refer [pprint]])
   (:import [mini-java
-            ErrorHandler ErrorListener MiniJavaParser MiniJavaVisitor]
+            ErrorHandler ErrorListener]
            [mini_java.antlr
-            MiniJavaLexer MiniJavaBaseListener]
+            MiniJavaLexer MiniJavaParser]
            [org.antlr.v4.runtime
-            ANTLRFileStream CommonTokenStream]
-           [org.antlr.v4.runtime.tree
-            ParseTree ParseTreeWalker]))
+            ANTLRFileStream CommonTokenStream]))
 
 (defn mini-java [source-file]
   (let [input  (new ANTLRFileStream   source-file)
@@ -22,5 +21,10 @@
         errors (.getNumberOfSyntaxErrors parser)]
     (if (pos? errors)
       (println errors "errors occured.")
-      (let [ast (ast/ast tree)]
-        (pprint ast)))))
+      (let [ast (ast/ast tree)
+            class-table (type-check/class-table ast)]
+        (println "AST:")
+        (pprint ast)
+        (println)
+        (println "CLASS TABLE:")
+        (pprint class-table)))))
