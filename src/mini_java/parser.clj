@@ -1,6 +1,5 @@
 (ns mini-java.parser
   (:require [mini-java.ast  :as ast]
-            [mini-java.type-check :as type-check]
             [clojure.pprint :refer [pprint]])
   (:import [mini-java
             ErrorHandler ErrorListener]
@@ -19,12 +18,5 @@
                  (.setErrorHandler  (new ErrorHandler)))
         tree   (.goal parser)
         errors (.getNumberOfSyntaxErrors parser)]
-    (if (pos? errors)
-      (println errors "errors occured.")
-      (let [ast (ast/ast tree)
-            class-table (type-check/class-table ast)]
-        (println "AST:")
-        (pprint ast)
-        (println)
-        (println "CLASS TABLE:")
-        (pprint class-table)))))
+    (when-not (pos? errors)
+      (ast/ast tree))))
