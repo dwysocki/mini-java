@@ -6,8 +6,10 @@
   (:gen-class))
 
 (def cli-options
-  [[nil "--syntax-only"
-    "Only do syntax checking"]
+  [[nil "--syntax"
+    "Stop after syntax checking"]
+   [nil "--static-semantics"
+    "Stop after static semantics checking"]
    ["-h" "--help"]])
 
 (defn usage [options-summary]
@@ -44,14 +46,14 @@
 
        (let [source-file (first arguments)
              ; parse AST from source file
-             ast (parser/mini-java source-file)]
+             [ast parser] (parser/mini-java source-file)]
          ; exit if there are syntax errors
          (when (nil? ast) (exit 1 "Errors occurred."))
          ; exit if only syntax checking is requested
-         (when (:syntax-only options) (exit 0))
+         (when (:syntax options) (exit 0))
          
          ; perform static semantics checking
-         (let [class-table (static-semantics/class-table ast)]
+         (let [class-table (static-semantics/class-table ast parser)]
            ; exit if there are semantic errors
            (when (nil? class-table) (exit 1 "Errors occurred."))
 
@@ -59,5 +61,7 @@
            (pprint ast)
            (println)
            (println "CLASS TABLE:")
-           (pprint class-table))))
+           (pprint class-table)
+
+           (when (:static-semantics options) (exit 0)))))
      nil))

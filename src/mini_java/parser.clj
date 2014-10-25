@@ -19,4 +19,4 @@
         tree   (.goal parser)
         errors (.getNumberOfSyntaxErrors parser)]
     (when-not (pos? errors)
-      (ast/ast tree))))
+      [(ast/ast tree) parser])))

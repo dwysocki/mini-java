@@ -38,6 +38,6 @@
 (defn print-error [parser msg line column]
   (let [filename (parser-filename parser)]
     (binding [*out* *err*]
-      (println (str filename ":" line ": " msg))
+      (println (str filename ":" line ": error: " msg))
       (underline-error parser line column))))
 
