@@ -71,7 +71,6 @@
 (defn class-table [ast parser]
   (let [error-agent (agent [0 parser])
         class-table (info-map (:classes ast) error-agent)]
-    (println (agent-error error-agent))
     (await error-agent)
     (shutdown-agents)
     (if (zero? (first @error-agent))
