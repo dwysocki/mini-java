@@ -1,4 +1,4 @@
-(defproject mini-java "0.1.1"
+(defproject mini-java "0.1.2-SNAPSHOT"
   :description "A MiniJava compiler implemented in Clojure."
   :url "https://github.com/dwysocki/mini-java"
   :license {:name "MIT License"
@@ -15,4 +15,5 @@
   :java-source-paths ["src/antlr"]
   :aot [mini-java.ErrorListener
         mini-java.ErrorHandler]
+  :uberjar-name "mini-javac.jar"
   :main mini-java.core)
