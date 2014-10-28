@@ -18,7 +18,7 @@
 (defn context [node]
   (:context (meta node)))
 
-(def ^{:private true} parser-inner-classes
+(def ^:private parser-inner-classes
   (.getClasses MiniJavaParser))
 
 (defn- typeify [type]
@@ -30,15 +30,15 @@
         kw-name  (keyword str-name)]
     [kw-name type]))
 
-(def ^{:private true} key->type
+(def ^:private key->type
   (assoc (into {} (map typeify parser-inner-classes))
     :terminal-node TerminalNodeImpl))
 
-(def ^{:private true} type->key
+(def ^:private type->key
   (assoc (into {} (map (comp vec reverse typeify) parser-inner-classes))
     TerminalNodeImpl :terminal-node))
 
-(def ^{:private true} obj-type-key
+(def ^:private obj-type-key
   (comp type->key type))
 
 (defn- children [node]
@@ -84,9 +84,11 @@
         body-idx (if child? 4 2)
         {:keys [vars methods]} (ast (.getChild node body-idx))]
     (with-line-and-column node :class-declaration
-     {:name    (ast (.getChild node 1)),
-      :parent  (when child? (ast (.getChild node 3))),
-      :vars    (map remove-type vars),
+     {:name (ast (.getChild node 1)),
+      :parent (when child? (ast (.getChild node 3))),
+      ;; boolean stating whether inheritance has already been resolved
+      :unresolved-inheritance? child?
+      :vars (map remove-type vars),
       :methods (map remove-type methods)})))
 
 (defmethod ast :main-class-body [node]
@@ -189,7 +191,7 @@
    (let [length (.getChildCount node)]
      (if (= 3 length)
        (ast (.getChild node 1))
-       []))))
+       ()))))
 
 (defmethod ast :formal-parameter-list [node]
   (->> node

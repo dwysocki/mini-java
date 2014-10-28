@@ -5,6 +5,7 @@ class Classes {
 }
 
 class A {
+    int foo;
     public int run() {
         int x;
         int y;
@@ -19,11 +20,12 @@ class A {
 class B {
     int foo;
     int bar;
+    int baz;
     public int square(int x) {
         return x * x;
     }
 }
 
 class C extends B {
-    int baz;
+    boolean foo;
 }
