@@ -82,7 +82,7 @@
        :methods (info-map (:methods class) error-agent)}
     (with-meta (meta class))))
 
-(defn- inherit-var [child-vars parent-var error-agent]
+#_(defn- inherit-var [child-vars parent-var error-agent]
   (let [var-name  (:name parent-var)
         child-var (child-vars var-name)]
     (cond
@@ -98,7 +98,7 @@
      ;; don't inherit it, and don't report an error
      :else child-vars)))
 
-(defn- inherit [child parent error-agent]
+#_(defn- inherit [child parent error-agent]
   (let [child-vars  (:vars child)
         parent-vars (vals (:vars parent))]
     (assoc child
@@ -106,7 +106,7 @@
                     child-vars parent-vars)
       :unresolved-inheritance? false)))
 
-(defn- member-inheritance [class-map parent error-agent]
+#_(defn- member-inheritance [class-map parent error-agent]
   (let [parent-name (:name parent)
 
         children (filter (comp (partial = parent-name)
@@ -121,17 +121,18 @@
 
 (defn class-table [ast parser]
   (let [error-agent (agent [0 parser])
-        initial-class-table (info-map (:classes ast) error-agent)
-        inherited-class-table (member-inheritance initial-class-table
-                                                  nil
-                                                  error-agent)]
-    (when-let [unresolved (->> inherited-class-table
-                               vals
-                               (filter :unresolved-inheritance?)
-                               seq)]
-      (map #(send-off unresolved-inheritance error-agent %)
-           unresolved))
+        class-table (info-map (:classes ast) error-agent)
+        ;; inherited-class-table (member-inheritance initial-class-table
+        ;;                                           nil
+        ;;                                           error-agent)
+        ]
+    #_(when-let [unresolved (->> inherited-class-table
+                                 vals
+                                 (filter :unresolved-inheritance?)
+                                 seq)]
+        (map #(send-off unresolved-inheritance error-agent %)
+             unresolved))
     (await error-agent)
     (shutdown-agents)
     (when (zero? (first @error-agent))
-      inherited-class-table)))
+      class-table)))
