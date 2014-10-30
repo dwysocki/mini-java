@@ -1,7 +1,7 @@
 (ns mini-java.static-semantics
   (:require [clojure.walk     :refer [walk]]
             [mini-java.ast    :as    ast]
-            [mini-java.errors :refer [print-error]]))
+            [mini-java.errors :refer [print-error print-type-error]]))
 
 (declare info)
 
@@ -38,7 +38,7 @@
 
 (defn- assert-type [found required context error-agent]
   (when (not= found required)
-    (send-off report-bad-type error-agent context found required)))
+    (send-off error-agent report-bad-type context found required)))
 
 (defn- info-map
   ([seq error-agent]
@@ -115,7 +115,7 @@
 (defmulti type-check (fn [x & args] (ast/context x)))
 
 (defmethod type-check :default [node & args]
-  node)
+  nil)
 
 (defmethod type-check :class-declaration [class scopes error-agent]
   (let [scopes (assoc scopes :class class)]
@@ -124,18 +124,53 @@
 
 (defmethod type-check :method-declaration [method scopes error-agent]
   (let [scopes (assoc scopes :method method)]
-    (doseq [[_ statement] (:body method)]
+    (doseq [statement (:body method)]
       (type-check statement scopes error-agent))))
+
+(defmethod type-check :nested-statement [statements scopes error-agent]
+  (doseq [statement statements]
+    (type-check statement scopes error-agent)))
 
 (defmethod type-check :if-else-statement [statement scopes error-agent]
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
-                 pred error-agent))
-  (type-check (:then statement))
-  (type-check (:else statement)))
+                 pred error-agent)
+    (type-check (:then statement) scopes error-agent)
+    (type-check (:else statement) scopes error-agent)))
 
+(defmethod type-check :while-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that predicate is a boolean
+  ;; call type-check on the body
+  )
 
+(defmethod type-check :print-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that contents are of type :int
+  )
+
+(defmethod type-check :assign-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that ID refers to a valid variable, and that value has same type
+  )
+
+(defmethod type-check :array-assign-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that ID refers to a valid :int<>, index is :int, and value is :int
+  )
+
+(defmethod type-check :return-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that return type equals method's return type
+  )
+
+(defmethod type-check :recur-statement [statement scopes error-agent]
+  ;; TODO
+  ;; check that base case's type equals method's return type
+  ;; predicate is boolean,
+  ;; and argument list matches method's
+  )
 
 (defmethod type-check :and-expression [expression scopes error-agent]
   (let [left  (:left expression)
@@ -148,13 +183,37 @@
                  right error-agent)
     :boolean))
 
+(defmethod type-check :lt-expression [expression scopes error-agent]
+  ;; TODO
+  :boolean)
 
+(defmethod type-check :add-expression [expression scopes error-agent]
+  ;; TODO
+  :int)
+
+(defmethod type-check :sub-expression [expression scopes error-agent]
+  ;; TODO
+  :int)
+
+(defmethod type-check :mul-expression [expression scopes error-agent]
+  ;; TODO
+  :int)
+
+(defmethod type-check :array-access-expression [expression scopes error-agent]
+  ;; TODO
+  :int)
+
+(defmethod type-check :array-length-expression [expression scopes error-agent]
+  ;; TODO
+  :int)
 
 (defmethod type-check :int-lit-expression [expression scopes error-agent]
   :int)
 
 (defmethod type-check :boolean-expression [expression scopes error-agent]
   :boolean)
+
+
 
 (defn class-table [ast parser]
   (let [error-agent (agent [0 parser])

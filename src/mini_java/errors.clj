@@ -47,7 +47,7 @@
 (defn- found-string [found]
   (str "  found:    " found))
 
-(def- ^:private type-str-map
+(def ^:private type-str-map
   {:int     "int",
    :boolean "boolean",
    :int<>   "int[]"})
@@ -59,5 +59,5 @@
 (defn print-type-error [parser msg line column found required]
   (print-error parser msg line column)
   (binding [*out* *err*]
-    (println (required-string required))
-    (println (found-string    found))))
+    (println (required-string (type-str required)))
+    (println (found-string    (type-str found)))))
