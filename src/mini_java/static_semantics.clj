@@ -1,7 +1,9 @@
 (ns mini-java.static-semantics
   (:require [clojure.walk     :refer [walk]]
             [mini-java.ast    :as    ast]
-            [mini-java.errors :refer [print-error print-type-error]]))
+            [mini-java.errors :refer [print-error
+                                      print-type-error
+                                      print-symbol-error]]))
 
 (declare info)
 
@@ -32,8 +34,15 @@
 
 (defn- report-bad-type [[error-count parser] context found required]
   (let [{:keys [line column]} (meta context)
-        msg (str "incompatible types")]
+        msg "incompatible types"]
     (print-type-error parser msg line column found required))
+  [(inc error-count) parser])
+
+(defn- report-missing-symbol [[error-count parser] context]
+  (let [{:keys [line column]} (meta context)
+        symbol (:id context)
+        msg "cannot find symbol"]
+    (print-symbol-error parser msg line column symbol))
   [(inc error-count) parser])
 
 (defn- assert-type [found required context error-agent]
@@ -87,6 +96,10 @@
      (let [parent (class-table parent-name)]
        (cons parent (parent-seq parent class-table))))))
 
+(defn- get-var [id scopes]
+  (or (-> scopes :method :vars (get id))
+      (-> scopes :class  :vars (get id))))
+
 (defn- shadow-check [class parents error-agent]
   "Reports errors if class shadows any of its parent's fields."
   (when (seq parents)
@@ -135,25 +148,33 @@
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
-                 pred error-agent)
-    (type-check (:then statement) scopes error-agent)
-    (type-check (:else statement) scopes error-agent)))
+                 pred error-agent))
+  (type-check (:then statement) scopes error-agent)
+  (type-check (:else statement) scopes error-agent))
 
 (defmethod type-check :while-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that predicate is a boolean
-  ;; call type-check on the body
-  )
+  (let [pred (:pred statement)
+        pred-type (type-check pred scopes error-agent)]
+    (assert-type pred-type :boolean
+                 pred error-agent))
+  (type-check (:body statement) scopes error-agent))
 
 (defmethod type-check :print-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that contents are of type :int
-  )
+  "Check that print statement has an int as its argument."
+  (let [arg (:arg statement)
+        arg-type (type-check arg scopes error-agent)]
+    (assert-type arg-type :int
+                 arg error-agent)))
 
 (defmethod type-check :assign-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that ID refers to a valid variable, and that value has same type
-  )
+  (let [target (:target statement)
+        source (:source statement)
+        target-type (:type (get-var target scopes))
+        source-type (type-check source scopes error-agent)]
+    (if target-type
+      (assert-type source-type target-type
+                   source error-agent)
+      (send-off error-agent report-missing-symbol statement))))
 
 (defmethod type-check :array-assign-statement [statement scopes error-agent]
   ;; TODO
@@ -172,31 +193,34 @@
   ;; and argument list matches method's
   )
 
-(defmethod type-check :and-expression [expression scopes error-agent]
+(defn- binary-op-type-check [expression type scopes error-agent]
   (let [left  (:left expression)
         right (:right expression)
         left-type (type-check left scopes error-agent)
         right-type (type-check right scopes error-agent)]
-    (assert-type left-type :boolean
+    (assert-type left-type type
                  left error-agent)
-    (assert-type right-type :boolean
-                 right error-agent)
-    :boolean))
+    (assert-type right-type type
+                 right error-agent)))
+
+(defmethod type-check :and-expression [expression scopes error-agent]
+  (binary-op-type-check expression :boolean scopes error-agent)
+  :boolean)
 
 (defmethod type-check :lt-expression [expression scopes error-agent]
-  ;; TODO
+  (binary-op-type-check expression :int scopes error-agent)
   :boolean)
 
 (defmethod type-check :add-expression [expression scopes error-agent]
-  ;; TODO
+  (binary-op-type-check expression :int scopes error-agent)
   :int)
 
 (defmethod type-check :sub-expression [expression scopes error-agent]
-  ;; TODO
+  (binary-op-type-check expression :int scopes error-agent)
   :int)
 
 (defmethod type-check :mul-expression [expression scopes error-agent]
-  ;; TODO
+  (binary-op-type-check expression :int scopes error-agent)
   :int)
 
 (defmethod type-check :array-access-expression [expression scopes error-agent]
@@ -212,6 +236,13 @@
 
 (defmethod type-check :boolean-expression [expression scopes error-agent]
   :boolean)
+
+(defmethod type-check :identifier-expression [expression scopes error-agent]
+  "Returns the type of the variable which the identifier is bound to.
+  If the variable does not exist, reports and error and returns nil."
+  (or (:type (get-var (:id expression) scopes))
+      (do (send-off error-agent report-missing-symbol expression)
+          nil)))
 
 
 

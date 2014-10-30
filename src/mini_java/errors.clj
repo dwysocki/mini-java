@@ -47,6 +47,12 @@
 (defn- found-string [found]
   (str "  found:    " found))
 
+(defn- symbol-string [symbol]
+  (str "  symbol:   variable " symbol))
+
+(defn- location-string [symbol]
+  (str "  location: class FIXME"))
+
 (def ^:private type-str-map
   {:int     "int",
    :boolean "boolean",
@@ -61,3 +67,9 @@
   (binding [*out* *err*]
     (println (required-string (type-str required)))
     (println (found-string    (type-str found)))))
+
+(defn print-symbol-error [parser msg line column symbol]
+  (print-error parser msg line column)
+  (binding [*out* *err*]
+    (println (symbol-string symbol))
+    (println (location-string symbol))))
