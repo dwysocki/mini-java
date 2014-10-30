@@ -107,21 +107,21 @@
       :methods methods})))
 
 (defmethod ast :method-declaration [node]
-  (let [{:keys [vars statements]} (ast (.getChild node 4))]
+  (let [{:keys [vars body]} (ast (.getChild node 4))]
     [:method-declaration,
      (with-line-and-column node :method-declaration
       {:name (ast (.getChild node 2)),
        :type (ast (.getChild node 1)),
        :args (ast (.getChild node 3)),
        :vars vars,
-       :statements statements})]))
+       :body body})]))
 
 (defmethod ast :method-body [node]
   (let [children (remove-braces (children node))
         body-nodes (map ast children)]
     (with-line-and-column node :method-body
-     {:vars       (map remove-type (filter var-declaration? body-nodes))
-      :statements (filter (comp not var-declaration?) body-nodes)})))
+     {:vars (map remove-type (filter var-declaration? body-nodes))
+      :body (filter (comp not var-declaration?) body-nodes)})))
 
 (defmethod ast :var-declaration [node]
   [:var-declaration,
@@ -305,7 +305,7 @@
   :int)
 
 (defmethod ast :int-array-type [node]
-  :int-array)
+  :int<>)
 
 (defmethod ast :boolean-type [node]
   :boolean)

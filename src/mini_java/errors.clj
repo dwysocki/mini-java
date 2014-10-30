@@ -41,3 +41,23 @@
       (println (str filename ":" line ": error: " msg))
       (underline-error parser line column))))
 
+(defn- required-string [required]
+  (str "  required: " required))
+
+(defn- found-string [found]
+  (str "  found:    " found))
+
+(def- ^:private type-str-map
+  {:int     "int",
+   :boolean "boolean",
+   :int<>   "int[]"})
+
+(defn- type-str [type]
+  "Returns the string representation of type"
+  (get type-str-map type type))
+
+(defn print-type-error [parser msg line column found required]
+  (print-error parser msg line column)
+  (binding [*out* *err*]
+    (println (required-string required))
+    (println (found-string    found))))

@@ -17,7 +17,7 @@ class A {
     }
 }
 
-class B {
+class B extends A{
     int foo;
     int bar;
     int baz;
@@ -28,4 +28,5 @@ class B {
 
 class C extends B {
     boolean foo;
+    int[] baz;
 }
