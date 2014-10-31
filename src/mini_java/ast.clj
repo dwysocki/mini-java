@@ -4,6 +4,9 @@
   (:import [org.antlr.v4.runtime.tree TerminalNodeImpl]
            [mini_java.antlr MiniJavaParser]))
 
+(def primitives
+  #{:int, :boolean, :int<>})
+
 (defn- node-line-and-column [node]
   (let [token (.getStart node)]
     (util/token-line-and-column token)))
@@ -248,8 +251,8 @@
                 ast
                 Integer.)}))
 
-(defmethod ast :boolean-expression [node]
-  (with-line-and-column node :boolean-expression
+(defmethod ast :boolean-lit-expression [node]
+  (with-line-and-column node :boolean-lit-expression
     {:value (-> node
                 (.getChild 0)
                 ast

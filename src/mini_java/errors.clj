@@ -62,6 +62,9 @@
   "Returns the string representation of type"
   (get type-str-map type type))
 
+(defn- arg-types-str [arg-types]
+  (clojure.string/join "," (map type-str arg-types)))
+
 (defn print-type-error [parser msg line column found required]
   (print-error parser msg line column)
   (binding [*out* *err*]
@@ -73,3 +76,15 @@
   (binding [*out* *err*]
     (println (symbol-string symbol))
     (println (location-string symbol))))
+
+(defn print-arg-types-error [parser msg line column given-types required-types]
+  (print-error parser msg line column)
+  (binding [*out* *err*]
+    (println (required-string (arg-types-str required-types)))
+    (println (found-string    (arg-types-str given-types)))))
+
+(defn print-return-type-error [parser msg line column child-type parent-type]
+  (print-error parser msg line column)
+  (binding [*out* *err*]
+    (println (required-string (type-str parent-type)))
+    (println (found-string    (type-str child-type)))))

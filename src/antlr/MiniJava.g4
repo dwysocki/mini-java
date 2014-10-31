@@ -83,18 +83,6 @@ type
     |   ID
     ;
 
-intArrayType
-    :   'int' '[' ']'
-    ;
-
-booleanType
-    :   'boolean'
-    ;
-
-intType
-    :   'int'
-    ;
-
 statement
     :   '{' statement* '}'
     # nestedStatement
@@ -137,7 +125,7 @@ expression
     # methodCallExpression
     |   INT
     # intLitExpression
-    |   booleanLit
+    |   BOOL
     # booleanLitExpression
     |   ID
     # identifierExpression
@@ -159,19 +147,29 @@ methodArgumentList
     :   '(' (expression (',' expression)*)? ')'
     ;
 
-ID
-    :   [a-zA-Z_][0-9a-zA-Z_]*
+intArrayType
+    :   'int' '[' ']'
     ;
 
+booleanType
+    :   'boolean'
+    ;
 
+intType
+    :   'int'
+    ;
 
 INT
     :   ('0' | [1-9][0-9]*) 
     ;
 
-booleanLit
+BOOL
     :   'true'
     |   'false'
+    ;
+
+ID
+    :   [a-zA-Z_][0-9a-zA-Z_]*
     ;
 
 WS

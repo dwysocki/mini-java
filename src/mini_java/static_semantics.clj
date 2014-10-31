@@ -3,9 +3,11 @@
             [mini-java.ast    :as    ast]
             [mini-java.errors :refer [print-error
                                       print-type-error
-                                      print-symbol-error]]))
+                                      print-symbol-error
+                                      print-arg-types-error
+                                      print-return-type-error]]))
 
-(declare info)
+(declare info type-check)
 
 (def ^:private context->type
   {:method-declaration "method",
@@ -45,9 +47,53 @@
     (print-symbol-error parser msg line column symbol))
   [(inc error-count) parser])
 
+(defn- report-missing-method [[error-count parser] context method-name]
+  (let [{:keys [line column]} (meta context)
+        msg (str "cannot find method " method-name)]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-missing-type [[error-count parser] context type]
+  (let [{:keys [line column]} (meta context)
+        msg (str "cannot find type " type)]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-number-of-args [[error-count parser] context n-required]
+  (let [{:keys [line column]} (meta context)
+        msg (str "wrong number of args given (" n-required " required)")]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-type-args [[error-count parser]
+                         given-types required-types context]
+  (let [{:keys [line column]} (meta context)
+        msg "method cannot be applied to given types"]
+    (print-arg-types-error parser msg line column given-types required-types))
+  [(inc error-count) parser])
+
+(defn- report-overload [[error-count parser] context child-type parent-type]
+  (let [{:keys [line column name]} (meta context)
+        msg (str "method " name " overloads parent method")]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-return-type [[error-count parser] context child-type parent-type]
+  (let [{:keys [line column name]} (meta context)
+        msg (str "method " name " overrides parent method with wrong type")]
+    (print-return-type-error parser msg line column child-type parent-type))
+  [(inc error-count) parser])
+
 (defn- assert-type [found required context error-agent]
-  (when (not= found required)
-    (send-off error-agent report-bad-type context found required)))
+  (when-not (or (nil? found)
+                (nil? required))
+    (when (not= found required)
+      (send-off error-agent report-bad-type context found required))))
+
+(defn- assert-type-exists [type class-table context error-agent]
+  (when-not (or (class-table type)
+                (ast/primitives type))
+    (send-off error-agent report-missing-type context type)))
 
 (defn- info-map
   ([seq error-agent]
@@ -56,9 +102,8 @@
      (-> (fn [r elem]
            (let [{:keys [:name] :as info} (info elem error-agent)]
              (if (get r name)
-               (do
-                 (send-off error-agent report-duplicate elem)
-                 r)
+               (do (send-off error-agent report-duplicate elem)
+                   r)
                (assoc r name info))))
          (reduce init seq))))
 
@@ -96,9 +141,41 @@
      (let [parent (class-table parent-name)]
        (cons parent (parent-seq parent class-table))))))
 
-(defn- get-var [id scopes]
+(defn- locate-var [id scopes]
   (or (-> scopes :method :vars (get id))
       (-> scopes :class  :vars (get id))))
+
+(defn- locate-method [class method-name scopes]
+  (if-let [method (get (:methods class) method-name)]
+    ;; return the method if found
+    method
+    (when-let [parent ((:class-table scopes) (:parent class))]
+      ;; recur on parent class if method not found
+      ;; or return nil if parent is nil
+      (recur parent method-name scopes))))
+
+(defn- check-arg-count [given-args required-args error-agent]
+  (let [n-given    (count given-args)
+        n-required (count required-args)]
+    (if (= n-given n-required)
+      ;; correct number of arguments given
+      true
+      ;; wrong number of arguments given
+      (send-off error-agent report-number-of-args given-args n-required))))
+
+(defn- check-arg-types [given-args required-args scopes error-agent]
+  (let [given-types (map #(type-check % scopes error-agent) given-args)
+        required-types (map :type required-args)]
+    (if (every? true? (map = given-types required-types))
+      ;; all arguments are of required type
+      true
+      ;; not all arguments are of required type, report it
+      (send-off error-agent
+                report-type-args given-types required-types given-args))))
+
+(defn- check-args [given-args required-args context scopes error-agent]
+  (and (check-arg-count given-args required-args error-agent)
+       (check-arg-types given-args required-args scopes error-agent)))
 
 (defn- shadow-check [class parents error-agent]
   "Reports errors if class shadows any of its parent's fields."
@@ -117,13 +194,39 @@
             (filter identity)
             (map #(send-off error-agent report-shadow class %)))))))
 
-(defn- override-check [class parents error-agent]
+(defn- override-check [child-methods parents error-agent]
   "Reports errors if class overrides one of its parent's methods without
   using the same argument and return types."
-  (when (seq parents)
-    (let [parent-methods (mapcat :methods parents)]
-      ;; TODO: actually finish this function      
-      )))
+  (when-let [parent (first parents)]
+    (let [parent-methods         (:methods parent)
+          child-method-names     (set (keys child-methods))
+          parent-method-names    (set (keys parent-methods))
+          overriden-method-names (clojure.set/intersection child-method-names
+                                                           parent-method-names)
+          methods
+          (-> (fn [methods name]
+                (let [child-method  (child-methods name)
+                      parent-method (parent-methods name)
+                      child-type    (:type child-method)
+                      parent-type   (:type parent-method)
+                      child-types   (->> name child-method  :args (map :type))
+                      parent-types  (->> name parent-method :args (map :type))]
+                  (cond
+                   ;; report overloading
+                   (not= child-types parent-types)
+                   (send-off error-agent report-overload
+                             child-method child-types parent-types)
+
+                   ;; report override with different return type
+                   (not= child-type parent-type)
+                   (send-off error-agent report-return-type
+                             child-method child-type parent-type)))
+                ;; remove method from methods, so as not to repeat multiple
+                ;; errors for the same method override
+                (dissoc methods name))
+              (reduce child-methods overriden-method-names))])))
+
+
 
 (defmulti type-check (fn [x & args] (ast/context x)))
 
@@ -132,11 +235,15 @@
 
 (defmethod type-check :class-declaration [class scopes error-agent]
   (let [scopes (assoc scopes :class class)]
+    (doseq [var (vals (:vars class))]
+      (assert-type-exists (:type var) (:class-table scopes) var error-agent))
     (doseq [method (vals (:methods class))]
       (type-check method scopes error-agent))))
 
 (defmethod type-check :method-declaration [method scopes error-agent]
   (let [scopes (assoc scopes :method method)]
+    (doseq [var (vals (:vars class))]
+      (assert-type-exists (:type var) (:class-table scopes) var error-agent))
     (doseq [statement (:body method)]
       (type-check statement scopes error-agent))))
 
@@ -169,7 +276,7 @@
 (defmethod type-check :assign-statement [statement scopes error-agent]
   (let [target (:target statement)
         source (:source statement)
-        target-type (:type (get-var target scopes))
+        target-type (:type (locate-var target scopes))
         source-type (type-check source scopes error-agent)]
     (if target-type
       (assert-type source-type target-type
@@ -177,21 +284,36 @@
       (send-off error-agent report-missing-symbol statement))))
 
 (defmethod type-check :array-assign-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that ID refers to a valid :int<>, index is :int, and value is :int
-  )
+  (let [{:keys [target index source]} statement
+        target-type (:type (locate-var target scopes))
+        index-type  (type-check index scopes error-agent)
+        source-type (type-check source scopes error-agent)]
+    (assert-type target-type :int<>
+                 target error-agent)
+    (assert-type index-type :int
+                 index error-agent)
+    (assert-type source-type :int
+                 source error-agent)))
 
 (defmethod type-check :return-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that return type equals method's return type
-  )
+  (let [return-value (:return-value statement)
+        method-return-type (:type (:method scopes))
+        return-value-type (type-check return-value scopes error-agent)]
+    (assert-type return-value-type method-return-type
+                 return-value error-agent)))
 
 (defmethod type-check :recur-statement [statement scopes error-agent]
-  ;; TODO
-  ;; check that base case's type equals method's return type
-  ;; predicate is boolean,
-  ;; and argument list matches method's
-  )
+  (let [{:keys [pred args base]} statement
+        pred-type (type-check pred scopes error-agent)
+        base-type (type-check base scopes error-agent)
+        method (:method scopes)
+        return-type (:type method)
+        required-args (:args method)]
+    (assert-type pred-type :boolean
+                 pred error-agent)
+    (assert-type base-type return-type
+                 base error-agent)
+    (check-args args required-args statement scopes error-agent)))
 
 (defn- binary-op-type-check [expression type scopes error-agent]
   (let [left  (:left expression)
@@ -224,37 +346,93 @@
   :int)
 
 (defmethod type-check :array-access-expression [expression scopes error-agent]
-  ;; TODO
+  (let [array (:array expression)
+        index (:index expression)
+        array-type (type-check array scopes error-agent)
+        index-type (type-check index scopes error-agent)]
+    (assert-type array-type :int<>
+                 array error-agent)
+    (assert-type index-type :int
+                 index error-agent))
   :int)
 
 (defmethod type-check :array-length-expression [expression scopes error-agent]
-  ;; TODO
+  (let [array (:array expression)
+        array-type (type-check array scopes error-agent)]
+    (assert-type array-type :int<>
+                 array error-agent))
   :int)
+
+(defmethod type-check :method-call-expression [expression scopes error-agent]
+  "Checks that the method calls an existing method with the appropriate
+  arguments. Returns the return type of the method, or nil if not found."
+  (let [{:keys [caller method args]} expression
+        caller-type (if (= caller :this)
+                      (-> scopes :class :name)
+                      (type-check caller scopes error-agent))
+        caller-class (-> scopes :class-table (get caller-type))]
+    (if-let [method (locate-method caller-class method scopes)]
+      ;; method found, check argument types
+      ;; and return method's return type regardless of correct usage
+      (do (check-args args (:args method) expression scopes error-agent)
+          (:type method))
+      ;; method not found
+      (do (send-off error-agent report-missing-method
+                    expression method)
+          nil))))
 
 (defmethod type-check :int-lit-expression [expression scopes error-agent]
   :int)
 
-(defmethod type-check :boolean-expression [expression scopes error-agent]
+(defmethod type-check :boolean-lit-expression [expression scopes error-agent]
   :boolean)
 
 (defmethod type-check :identifier-expression [expression scopes error-agent]
   "Returns the type of the variable which the identifier is bound to.
   If the variable does not exist, reports and error and returns nil."
-  (or (:type (get-var (:id expression) scopes))
+  (or (:type (locate-var (:id expression) scopes))
       (do (send-off error-agent report-missing-symbol expression)
           nil)))
 
+(defmethod type-check :array-instantiation-expression [expression scopes
+                                                       error-agent]
+  (let [size (:size expression)
+        size-type (type-check size scopes error-agent)]
+    (assert-type size-type :int
+                 size error-agent))
+  :int<>)
+
+(defmethod type-check :object-instantiation-expression [expression scopes
+                                                        error-agent]
+  (let [type (:type expression)]
+    (assert-type-exists type (:class-table scopes) expression error-agent)
+    type))
+
+(defmethod type-check :not-expression [expression scopes error-agent]
+  (let [operand (:operand expression)
+        operand-type (type-check operand scopes error-agent)]
+    (assert-type operand-type :boolean
+                 operand error-agent))
+  :boolean)
+
+(defmethod type-check :neg-expression [expression scopes error-agent]
+  (let [operand (:operand expression)
+        operand-type (type-check operand scopes error-agent)]
+    (assert-type operand-type :int
+                 operand error-agent))
+  :int)
 
 
 (defn class-table [ast parser]
   (let [error-agent (agent [0 parser])
         class-table (info-map (:classes ast) error-agent)
-        classes     (vals class-table)]
+        classes     (vals class-table)
+        scopes      {:class-table class-table}]
     (doseq [class classes]
       (let [parents (parent-seq class class-table)
-            scopes  {:parents parents}]
+            scopes  (assoc scopes :parents parents)]
         (shadow-check   class parents error-agent)
-        (override-check class parents error-agent)
+        (override-check (:methods class) parents error-agent)
         (type-check     class scopes  error-agent)))
 
     (await error-agent)
