@@ -57,11 +57,11 @@
            ; exit if there are semantic errors
            (when (nil? class-table) (exit 1 "Errors occurred."))
 
-           (println "AST:")
-           (pprint ast)
-           (println)
-           (println "CLASS TABLE:")
-           (pprint class-table)
+;           (println "AST:")
+;           (pprint ast)
+;           (println)
+;           (println "CLASS TABLE:")
+;           (pprint class-table)
 
            (when (:static-semantics options) (exit 0)))))
      nil))

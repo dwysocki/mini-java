@@ -7,7 +7,7 @@
                                       print-arg-types-error
                                       print-return-type-error]]))
 
-(declare info type-check)
+(declare info type-check parent-seq)
 
 (def ^:private context->type
   {:method-declaration "method",
@@ -31,6 +31,12 @@
   (let [{:keys [line column]} (meta var)
         msg (str "class " (:name child) " "
                  "shadows variable " (:name var))]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-cyclic-inheritance [[error-count parser] class]
+  (let [{:keys [line column]} (meta class)
+        msg (str "cyclic inheritance involving " (:name class))]
     (print-error parser msg line column))
   [(inc error-count) parser])
 
@@ -73,21 +79,44 @@
   [(inc error-count) parser])
 
 (defn- report-overload [[error-count parser] context child-type parent-type]
-  (let [{:keys [line column name]} (meta context)
-        msg (str "method " name " overloads parent method")]
+  (let [{:keys [line column]} (meta context)
+        msg (str "method " (:name context) " overloads parent method")]
     (print-error parser msg line column))
   [(inc error-count) parser])
 
 (defn- report-return-type [[error-count parser] context child-type parent-type]
-  (let [{:keys [line column name]} (meta context)
-        msg (str "method " name " overrides parent method with wrong type")]
+  (let [{:keys [line column]} (meta context)
+        msg (str "method " (:name context) " "
+                 "overrides parent method with wrong type")]
     (print-return-type-error parser msg line column child-type parent-type))
   [(inc error-count) parser])
 
-(defn- assert-type [found required context error-agent]
+(defn- report-no-return [[error-count parser] method]
+  (let [{:keys [line column]} (meta method)
+        msg (str "method " (:name method) " does not return")]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-non-tail-return [[error-count parser] statement]
+  (let [{:keys [line column context]} (meta statement)
+        statement-type (if (= context :return-statement)
+                         "return"
+                         "recur")
+        msg (str statement-type " only allowed from tail position of method")]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- subtype? [found required class-table]
+  (or (= found required)
+      (let [found-class (class-table found)]
+        (when-let [parents (parent-seq found-class class-table)]
+          (some (partial = required)
+                (map :name parents))))))
+
+(defn- assert-type [found required context scopes error-agent]
   (when-not (or (nil? found)
                 (nil? required))
-    (when (not= found required)
+    (when-not (subtype? found required (:class-table scopes))
       (send-off error-agent report-bad-type context found required))))
 
 (defn- assert-type-exists [type class-table context error-agent]
@@ -134,6 +163,16 @@
        :methods (info-map (:methods class) error-agent)}
     (with-meta (meta class))))
 
+(defmethod info :main-class-declaration [class error-agent]
+  (-> {:name    (:name class)
+       :main?   true
+       :vars    ()
+       :methods {"main" {:name "main"
+                         :vars ()
+                         :args ()
+                         :body (:body class)}}}
+    (with-meta (meta class))))
+
 (defn- parent-seq [class class-table]
   "Returns a lazy seq of all parents of the given class."
   (lazy-seq
@@ -143,7 +182,14 @@
 
 (defn- locate-var [id scopes]
   (or (-> scopes :method :vars (get id))
-      (-> scopes :class  :vars (get id))))
+      (-> scopes :class  :vars (get id))
+      (loop [parents (:parents scopes)]
+        (when (seq parents)
+         (let [parent (first parents)
+               vars   (:vars parent)]
+           (if-let [var (get vars id)]
+             var
+             (recur (next parents))))))))
 
 (defn- locate-method [class method-name scopes]
   (if-let [method (get (:methods class) method-name)]
@@ -166,7 +212,8 @@
 (defn- check-arg-types [given-args required-args scopes error-agent]
   (let [given-types (map #(type-check % scopes error-agent) given-args)
         required-types (map :type required-args)]
-    (if (every? true? (map = given-types required-types))
+    (if (every? identity (map #(subtype? %1 %2 (:class-table scopes))
+                           given-types required-types))
       ;; all arguments are of required type
       true
       ;; not all arguments are of required type, report it
@@ -209,8 +256,8 @@
                       parent-method (parent-methods name)
                       child-type    (:type child-method)
                       parent-type   (:type parent-method)
-                      child-types   (->> name child-method  :args (map :type))
-                      parent-types  (->> name parent-method :args (map :type))]
+                      child-types   (->> child-method  :args (map :type))
+                      parent-types  (->> parent-method :args (map :type))]
                   (cond
                    ;; report overloading
                    (not= child-types parent-types)
@@ -224,14 +271,19 @@
                 ;; remove method from methods, so as not to repeat multiple
                 ;; errors for the same method override
                 (dissoc methods name))
-              (reduce child-methods overriden-method-names))])))
+              (reduce child-methods overriden-method-names))]
+      (recur methods (rest parents) error-agent))))
 
 
 
 (defmulti type-check (fn [x & args] (ast/context x)))
 
 (defmethod type-check :default [node & args]
-  nil)
+  (cond
+   (= node :this)
+   (let [[scopes error-agent] args
+         this-class (:class scopes)]
+     (:name this-class))))
 
 (defmethod type-check :class-declaration [class scopes error-agent]
   (let [scopes (assoc scopes :class class)]
@@ -244,8 +296,17 @@
   (let [scopes (assoc scopes :method method)]
     (doseq [var (vals (:vars class))]
       (assert-type-exists (:type var) (:class-table scopes) var error-agent))
-    (doseq [statement (:body method)]
-      (type-check statement scopes error-agent))))
+    (let [statements (:body method)]
+      ;; type check statements except for last one
+      (doseq [statement (butlast statements)]
+        (type-check statement scopes error-agent))
+      ;; check that last statement is a return statement
+      (let [final-statement (last statements)
+            final-statement-type (ast/context final-statement)]
+        (when-not (or (= final-statement-type :return-statement)
+                      (= final-statement-type :recur-statement))
+          (send-off error-agent report-no-return method))
+        (type-check final-statement (assoc scopes :tail? true) error-agent)))))
 
 (defmethod type-check :nested-statement [statements scopes error-agent]
   (doseq [statement statements]
@@ -255,7 +316,7 @@
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
-                 pred error-agent))
+                 pred scopes error-agent))
   (type-check (:then statement) scopes error-agent)
   (type-check (:else statement) scopes error-agent))
 
@@ -263,7 +324,7 @@
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
-                 pred error-agent))
+                 pred scopes error-agent))
   (type-check (:body statement) scopes error-agent))
 
 (defmethod type-check :print-statement [statement scopes error-agent]
@@ -271,7 +332,7 @@
   (let [arg (:arg statement)
         arg-type (type-check arg scopes error-agent)]
     (assert-type arg-type :int
-                 arg error-agent)))
+                 arg scopes error-agent)))
 
 (defmethod type-check :assign-statement [statement scopes error-agent]
   (let [target (:target statement)
@@ -280,7 +341,7 @@
         source-type (type-check source scopes error-agent)]
     (if target-type
       (assert-type source-type target-type
-                   source error-agent)
+                   source scopes error-agent)
       (send-off error-agent report-missing-symbol statement))))
 
 (defmethod type-check :array-assign-statement [statement scopes error-agent]
@@ -289,18 +350,22 @@
         index-type  (type-check index scopes error-agent)
         source-type (type-check source scopes error-agent)]
     (assert-type target-type :int<>
-                 target error-agent)
+                 target scopes error-agent)
     (assert-type index-type :int
-                 index error-agent)
+                 index scopes error-agent)
     (assert-type source-type :int
-                 source error-agent)))
+                 source scopes error-agent)))
 
 (defmethod type-check :return-statement [statement scopes error-agent]
   (let [return-value (:return-value statement)
         method-return-type (:type (:method scopes))
         return-value-type (type-check return-value scopes error-agent)]
+    ;; check that return type matches method's return type
     (assert-type return-value-type method-return-type
-                 return-value error-agent)))
+                 return-value scopes error-agent)
+    ;; check that return is from tail position
+    (when-not (:tail? scopes)
+      (send-off error-agent report-non-tail-return statement))))
 
 (defmethod type-check :recur-statement [statement scopes error-agent]
   (let [{:keys [pred args base]} statement
@@ -310,10 +375,13 @@
         return-type (:type method)
         required-args (:args method)]
     (assert-type pred-type :boolean
-                 pred error-agent)
+                 pred scopes error-agent)
     (assert-type base-type return-type
-                 base error-agent)
-    (check-args args required-args statement scopes error-agent)))
+                 base scopes error-agent)
+    (check-args args required-args statement scopes error-agent)
+    ;; check that recur is from tail position
+    (when-not (:tail? scopes)
+      (send-off error-agent report-non-tail-return statement))))
 
 (defn- binary-op-type-check [expression type scopes error-agent]
   (let [left  (:left expression)
@@ -321,9 +389,9 @@
         left-type (type-check left scopes error-agent)
         right-type (type-check right scopes error-agent)]
     (assert-type left-type type
-                 left error-agent)
+                 left scopes error-agent)
     (assert-type right-type type
-                 right error-agent)))
+                 right scopes error-agent)))
 
 (defmethod type-check :and-expression [expression scopes error-agent]
   (binary-op-type-check expression :boolean scopes error-agent)
@@ -351,16 +419,16 @@
         array-type (type-check array scopes error-agent)
         index-type (type-check index scopes error-agent)]
     (assert-type array-type :int<>
-                 array error-agent)
+                 array scopes error-agent)
     (assert-type index-type :int
-                 index error-agent))
+                 index scopes error-agent))
   :int)
 
 (defmethod type-check :array-length-expression [expression scopes error-agent]
   (let [array (:array expression)
         array-type (type-check array scopes error-agent)]
     (assert-type array-type :int<>
-                 array error-agent))
+                 array scopes error-agent))
   :int)
 
 (defmethod type-check :method-call-expression [expression scopes error-agent]
@@ -399,7 +467,7 @@
   (let [size (:size expression)
         size-type (type-check size scopes error-agent)]
     (assert-type size-type :int
-                 size error-agent))
+                 size scopes error-agent))
   :int<>)
 
 (defmethod type-check :object-instantiation-expression [expression scopes
@@ -412,20 +480,54 @@
   (let [operand (:operand expression)
         operand-type (type-check operand scopes error-agent)]
     (assert-type operand-type :boolean
-                 operand error-agent))
+                 operand scopes error-agent))
   :boolean)
 
 (defmethod type-check :neg-expression [expression scopes error-agent]
   (let [operand (:operand expression)
         operand-type (type-check operand scopes error-agent)]
     (assert-type operand-type :int
-                 operand error-agent))
+                 operand scopes error-agent))
   :int)
 
+(defn- locate-cyclic-class [parents visited error-agent]
+  "Locates the first class in parents which is also in visited.
+  Reports a cyclic inheritance error."
+  (when (seq parents)
+    (let [parent (first parents)
+          parent-name (:name parent)]
+      (if (visited parent-name)
+        (do (send-off error-agent report-cyclic-inheritance parent)
+            parent-name)
+        (recur (next parents) (conj visited parent-name) error-agent)))))
+
+(defn- remove-cycles [class-table error-agent]
+  "Removes inheritance cycles from the class table by iterating through
+  each class in the table and removing its parent reference if it is a
+  child of itself."
+  (-> (fn [class-table class-name]
+        (let [class (class-table class-name)
+              parents (parent-seq class class-table)]
+          (if-let [cyclic-class-name
+                   (locate-cyclic-class parents #{name} error-agent)]
+            ;; remove parent reference from class which introduces
+            ;; cyclic inheritance
+            (update-in class-table [cyclic-class-name]
+                       dissoc :parent)
+            ;; no cyclic inheritance found, change nothing
+            class-table)))
+   (reduce class-table (keys class-table))))
 
 (defn class-table [ast parser]
   (let [error-agent (agent [0 parser])
-        class-table (info-map (:classes ast) error-agent)
+        ;; put main in class table
+        class-table (info-map [(:main ast)] error-agent)
+        ;; put other classes in class table
+        class-table (-> (:classes ast)
+                        ;; create class table
+                        (info-map class-table error-agent)
+                        ;; remove inheritance cycles
+                        (remove-cycles error-agent))
         classes     (vals class-table)
         scopes      {:class-table class-table}]
     (doseq [class classes]

@@ -4,7 +4,7 @@ class Classes {
     }
 }
 
-class A {
+class A extends A {
     int foo;
     public int run() {
         int x;
@@ -14,11 +14,14 @@ class A {
         x = 1;
         y = 2;
 
+        return 1;
+        return false;
+
         x = b.square();
         x = b.square(1);
         x = b.square(2,3);
 
-        return new B().square(x + y);
+        //        return new B().square(x + y);
     }
 
     public int f(int x, int z) {
@@ -43,6 +46,10 @@ class B extends A{
     public int f(int x, int y) {
         recur (3 < 2) ? (x+1, y-1) : x*y;
     }
+
+    public boolean g() {
+        return false;
+    }
 }
 
 class C extends B {
@@ -50,6 +57,10 @@ class C extends B {
     int[] baz;
 
     public int f(int x) {
+        return 1;
+    }
+
+    public int g() {
         return 1;
     }
 }
