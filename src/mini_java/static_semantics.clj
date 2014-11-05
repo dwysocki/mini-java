@@ -540,5 +540,4 @@
     (await error-agent)
     (shutdown-agents)
 
-    (when (zero? (first @error-agent))
-      class-table)))
+    [class-table (first @error-agent)]))
