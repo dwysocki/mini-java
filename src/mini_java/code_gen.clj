@@ -65,6 +65,21 @@
                   (Type/getType java.io.PrintStream)
                   (Method/getMethod "void println(int)")))
 
+(defmethod generate :add-expression [expression class-table method-gen]
+  (generate (:left  expression) class-table method-gen)
+  (generate (:right expression) class-table method-gen)
+  (.math method-gen GeneratorAdapter/ADD Type/INT_TYPE))
+
+(defmethod generate :sub-expression [expression class-table method-gen]
+  (generate (:left  expression) class-table method-gen)
+  (generate (:right expression) class-table method-gen)
+  (.math method-gen GeneratorAdapter/SUB Type/INT_TYPE))
+
+(defmethod generate :mul-expression [expression class-table method-gen]
+  (generate (:left  expression) class-table method-gen)
+  (generate (:right expression) class-table method-gen)
+  (.math method-gen GeneratorAdapter/MUL Type/INT_TYPE))
+
 (defmethod generate :int-lit-expression [expression class-table method-gen]
   (.push method-gen (:value expression)))
 
