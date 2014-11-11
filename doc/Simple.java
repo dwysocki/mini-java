@@ -1,9 +1,15 @@
 class Simple {
     public static void main(String[] args) {
         {
-            System.out.println(3+1);
-            System.out.println(4-1);
-            System.out.println(5*2);
+            if (!true) {
+                System.out.println(5);
+            } else {
+                if (-3 < -100) {
+                    System.out.println(6);
+                } else {
+                    System.out.println(7);
+                }
+            }
         }
     }
 }

@@ -107,22 +107,30 @@ statement
     ;
 
 expression
-    :   expression '&&' expression
-    # andExpression
-    |   expression '<'  expression
-    # ltExpression  
+    :   expression '[' expression ']'
+    # arrayAccessExpression
+    |   expression '.' 'length'
+    # arrayLengthExpression
+    |   expression '.' ID methodArgumentList
+    # methodCallExpression
+    |   '-' expression
+    # negExpression
+    |   '!' expression
+    # notExpression
+    |   'new' 'int' '[' expression ']'
+    # arrayInstantiationExpression
+    |   'new' ID '(' ')'
+    # objectInstantiationExpression
     |   expression '+'  expression
     # addExpression
     |   expression '-'  expression
     # subExpression
     |   expression '*'  expression
     # mulExpression
-    |   expression '[' expression ']'
-    # arrayAccessExpression
-    |   expression '.' 'length'
-    # arrayLengthExpression
-    |   expression '.' ID methodArgumentList
-    # methodCallExpression
+    |   expression '<'  expression
+    # ltExpression  
+    |   expression '&&' expression
+    # andExpression
     |   INT
     # intLitExpression
     |   BOOL
@@ -131,14 +139,6 @@ expression
     # identifierExpression
     |   'this'
     # thisExpression
-    |   'new' 'int' '[' expression ']'
-    # arrayInstantiationExpression
-    |   'new' ID '(' ')'
-    # objectInstantiationExpression
-    |   '!' expression
-    # notExpression
-    |   '-' expression
-    # negExpression
     |   '(' expression ')'
     # parenExpression
     ;
