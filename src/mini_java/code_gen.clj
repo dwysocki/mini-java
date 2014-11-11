@@ -51,6 +51,10 @@
 
     (.toByteArray cw)))
 
+(defmethod generate :nested-statement [statements class-table method-gen]
+  (doseq [stat statements]
+    (generate stat class-table method-gen)))
+
 (defmethod generate :print-statement [statement class-table method-gen]
   (.getStatic method-gen
               (Type/getType System)

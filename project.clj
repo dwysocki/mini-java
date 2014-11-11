@@ -1,4 +1,4 @@
-(defproject mini-java "0.2.0"
+(defproject mini-java "0.2.1-SNAPSHOT"
   :description "A MiniJava compiler implemented in Clojure."
   :url "https://github.com/dwysocki/mini-java"
   :license {:name "MIT License"
