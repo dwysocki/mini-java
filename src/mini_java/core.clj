@@ -64,12 +64,6 @@
            ;; exit if only static semantics checking is requested
            (when (:static-semantics options)
              (exit 0))
-           
-           (let [class-byte-codes (code-gen/byte-codes class-table)]
-             ;; have a hash-map of class-name -> byte-code
-             ;; write each of these to a file
-             (doseq [[class-name byte-code] class-byte-codes]
-               (with-open [o (clojure.java.io/output-stream (str class-name
-                                                                 ".class"))]
-                 (.write o byte-code)))))))
+
+           (code-gen/write-classes class-table))))
      nil))

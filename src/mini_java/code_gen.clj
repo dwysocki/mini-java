@@ -1,34 +1,77 @@
 (ns mini-java.code-gen
+  (:require [mini-java.ast :as ast])
   (:import [org.objectweb.asm
             ClassWriter Opcodes Type]
            [org.objectweb.asm.commons
             GeneratorAdapter Method]))
 
-(defn byte-codes [class-table]
-  (let [cw (ClassWriter. ClassWriter/COMPUTE_FRAMES)
-        init (Method/getMethod "void <init>()")
-        main (Method/getMethod "void main(String[])")
-        init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)
-        main-gen (GeneratorAdapter. (+ Opcodes/ACC_PUBLIC Opcodes/ACC_STATIC)
-                                    main nil nil cw)]
-    (.visit cw
-            Opcodes/V1_1 Opcodes/ACC_PUBLIC "Example" nil
-            "java/lang/Object" nil)
+(def public-static (+ Opcodes/ACC_PUBLIC Opcodes/ACC_STATIC))
+
+(def obj-type (Type/getType Object))
+
+(defn- make-class-writer []
+  (ClassWriter. ClassWriter/COMPUTE_FRAMES))
+
+(defn- make-constructor [cw]
+  (let [init     (Method/getMethod "void <init>()")
+        init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)]
     (doto init-gen
       (.loadThis)
-      (.invokeConstructor (Type/getType Object) init)
+      (.invokeConstructor obj-type init)
       (.returnValue)
       (.endMethod))
+    init))
 
+(defn- make-class
+  ([cw class-name]
+     (make-class cw class-name "java/lang/Object"))
+  ([cw class-name parent]
+     (.visit cw Opcodes/V1_1 Opcodes/ACC_PUBLIC class-name nil parent nil)))
+
+(defmulti generate (fn [x & _] (ast/context x)))
+
+(defmethod generate :default [x & _]
+  (ast/context x))
+
+(defmethod generate :main-class-declaration [class class-table]
+  (let [class-name (:name class)
+        cw   (make-class-writer)
+        _    (make-class cw class-name)
+        init (make-constructor cw)
+        main (Method/getMethod "void main(String[])")
+        main-gen (GeneratorAdapter. public-static main nil nil cw)
+        main-statement (-> class :methods :main :body)]
+
+    (generate main-statement class-table main-gen)
     (doto main-gen
-      (.getStatic (Type/getType System)
-                  "out"
-                  (Type/getType java.io.PrintStream))
-      (.invokeVirtual (Type/getType java.io.PrintStream)
-                      (Method/getMethod "void println(String)"))
       (.returnValue)
       (.endMethod))
 
     (.visitEnd cw)
 
-    {"Example" (.toByteArray cw)}))
+    (.toByteArray cw)))
+
+(defmethod generate :print-statement [statement class-table method-gen]
+  (.getStatic method-gen
+              (Type/getType System)
+              "out"
+              (Type/getType java.io.PrintStream))
+  (generate (:arg statement) class-table method-gen)
+  (.invokeVirtual method-gen
+                  (Type/getType java.io.PrintStream)
+                  (Method/getMethod "void println(int)")))
+
+(defmethod generate :int-lit-expression [expression class-table method-gen]
+  (.push method-gen (:value expression)))
+
+(defn byte-codes [class-table]
+  (into {} (for [[name class] class-table]
+             [name (generate class class-table)])))
+
+(defn write-class [name bytes]
+  (with-open [o (clojure.java.io/output-stream (str name ".class"))]
+    (.write o bytes)))
+
+(defn write-classes [class-table]
+  (doseq [[name class] class-table]
+    (write-class name (generate class class-table))))

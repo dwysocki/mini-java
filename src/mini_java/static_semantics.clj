@@ -167,10 +167,10 @@
   (-> {:name    (:name class)
        :main?   true
        :vars    ()
-       :methods {"main" {:name "main"
-                         :vars ()
-                         :args ()
-                         :body (:body class)}}}
+       :methods {:main {:name "main"
+                        :vars ()
+                        :args ()
+                        :body (:body class)}}}
     (with-meta (meta class))))
 
 (defn- parent-seq [class class-table]

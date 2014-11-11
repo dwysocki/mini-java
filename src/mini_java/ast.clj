@@ -65,7 +65,6 @@
 (defmulti ast obj-type-key)
 
 (defmethod ast :default [node]
-;  [(type->key (type node)), node]
   node)
 
 (defmethod ast :terminal-node [node]
