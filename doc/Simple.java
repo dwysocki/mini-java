@@ -1,6 +1,8 @@
 class Simple {
     public static void main(String[] args) {
         {
+            System.out.println(new C().f());
+            /*
             if (!true) {
                 System.out.println(5);
             } else {
@@ -10,6 +12,13 @@ class Simple {
                     System.out.println(7);
                 }
             }
+            */
         }
+    }
+}
+
+class C {
+    public int f() {
+        return 1;
     }
 }

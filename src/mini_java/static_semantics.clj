@@ -180,7 +180,7 @@
      (let [parent (class-table parent-name)]
        (cons parent (parent-seq parent class-table))))))
 
-(defn- locate-var [id scopes]
+(defn locate-var [id scopes]
   (or (-> scopes :method :vars (get id))
       (-> scopes :class  :vars (get id))
       (loop [parents (:parents scopes)]
@@ -191,7 +191,9 @@
              var
              (recur (next parents))))))))
 
-(defn- locate-method [class method-name scopes]
+(defn locate-method [class method-name scopes]
+  "Returns the method bound to method-name by traversing class'
+  inheritance chain until it finds an implementation of the method."
   (if-let [method (get (:methods class) method-name)]
     ;; return the method if found
     method
