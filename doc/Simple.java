@@ -1,24 +1,40 @@
 class Simple {
     public static void main(String[] args) {
         {
-            System.out.println(new C().f());
-            /*
-            if (!true) {
-                System.out.println(5);
-            } else {
-                if (-3 < -100) {
-                    System.out.println(6);
-                } else {
-                    System.out.println(7);
-                }
-            }
-            */
+            System.out.println(new C().fac());
+            System.out.println(new C().sum());
         }
     }
 }
 
 class C {
-    public int f() {
-        return 1;
+    public int fac() {
+        int acc;
+        int n;
+
+        acc = 1;
+        n = 10;
+
+        while (0 < n) {
+            acc = acc * n;
+            n = n - 1;
+        }
+
+        return acc;
+    }
+
+    public int sum() {
+        int acc;
+        int n;
+
+        acc = 0;
+        n = 10;
+
+        while (0 < n) {
+            acc = acc + n;
+            n = n - 1;
+        }
+
+        return acc;
     }
 }

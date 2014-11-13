@@ -30,8 +30,20 @@
    :int<>   "int[]",
    :boolean "boolean"})
 
+(def ^:private primitive-descriptors
+  {:int     "I",
+   :int<>   "[I",
+   :boolean "Z"})
+
 (defn- type->str [type]
   (get primitives type type))
+
+(defn- type->descriptor [type]
+  (or (primitive-descriptors type)
+      (str "L" type ";")))
+
+(defn- type->Type [type]
+  (Type/getType (type->descriptor type)))
 
 (defn- arg-types [args]
   (clojure.string/join ", " (map (comp type->str :type) args)))
@@ -90,14 +102,32 @@
     (.visitEnd cw)
     (.toByteArray cw)))
 
+(defn- generate-local [var method-gen]
+  (let [;; the ASM Type corresponding to var
+        type (type->Type (:type var))
+        ;; create a new local in the method generator
+        index (.newLocal method-gen type)]
+    ;; store the index in the var
+    (assoc var :index index)))
+
+(defn- generate-locals [vars method-gen]
+  (-> (fn [m [name var]]
+        (assoc m
+          name (generate-local var method-gen)))
+      (reduce vars vars)))
+
 (defmethod generate :method-declaration [method scopes class-writer]
   (let [meth (make-method method)
         meth-gen (GeneratorAdapter.
                    Opcodes/ACC_PUBLIC meth nil nil class-writer)
+        ;; label for tail recursion goto
         start-label (.newLabel meth-gen)
-        statements (:body method)]
-    ;;;; TODO: add method variables ;;;;
-
+        statements (:body method)
+        ;; mapping from name -> local-var-info
+        ;; generate-locals creates new locals in the method generator,
+        ;; and associates their indices with the local-var-info
+        locals (generate-locals (:vars method) meth-gen)
+        scopes (assoc scopes :locals locals)]
     ;; set start label for recur statement
     (.mark meth-gen start-label)
     ;; generate statements
@@ -141,6 +171,21 @@
     (.goTo method-gen start-label)
     ;; end label
     (.mark method-gen end-label)))
+
+(defmethod generate :assign-statement [statement scopes method-gen]
+  "Generate a variable assignment statement.
+
+  TODO: Only works with locals, fix to work with class fields too."
+  ;; put source of assignment on stack
+  (generate (:source statement) scopes method-gen)
+  (let [;; get target var (only looks in locals right now)
+        target (-> scopes :locals (get (:target statement)))
+        type (type->Type (:type target))
+        ;; local index
+        index (:index target)]
+    ;; store the top of the stack into target variable
+    (.storeLocal method-gen
+                 index type)))
 
 (defmethod generate :print-statement [statement scopes method-gen]
   (.getStatic method-gen
@@ -224,6 +269,13 @@
 
 (defmethod generate :boolean-lit-expression [expression scopes method-gen]
   (.push method-gen (:value expression)))
+
+(defmethod generate :identifier-expression [expression scopes method-gen]
+  "Load the value bound to the identifier onto the stack.
+
+  NOTE: Only works for locals currently, fix this."
+  (let [var (-> scopes :locals (get (:id expression)))]
+    (.loadLocal method-gen (:index var))))
 
 (defmethod generate :object-instantiation-expression [expression scopes
                                                       method-gen]
