@@ -129,7 +129,7 @@
      (info-map seq {} error-agent))
   ([seq init error-agent]
      (-> (fn [r elem]
-           (let [{:keys [:name] :as info} (info elem error-agent)]
+           (let [{:keys [name] :as info} (info elem error-agent)]
              (if (get r name)
                (do (send-off error-agent report-duplicate elem)
                    r)

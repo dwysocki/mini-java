@@ -1,19 +1,20 @@
 class Simple {
     public static void main(String[] args) {
         {
-            System.out.println(new C().fac());
-            System.out.println(new C().sum());
+            System.out.println(new C().fac(10));
+            System.out.println(new C().fac_rec(10));
+            System.out.println(new C().sum(100));
         }
     }
 }
 
 class C {
-    public int fac() {
+    int x;
+    public int fac(int n) {
         int acc;
-        int n;
 
         acc = 1;
-        n = 10;
+        x = 2;
 
         while (0 < n) {
             acc = acc * n;
@@ -23,12 +24,22 @@ class C {
         return acc;
     }
 
-    public int sum() {
+    public int fac_rec(int n) {
+        int m;
+
+        if (1 < n)
+            m = this.fac_rec(n-1);
+        else
+            m = 1;
+
+        return n*m;
+    }
+
+
+    public int sum(int n) {
         int acc;
-        int n;
 
         acc = 0;
-        n = 10;
 
         while (0 < n) {
             acc = acc + n;

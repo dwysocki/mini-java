@@ -193,12 +193,14 @@
   (->> node
        children
        (take-nth 2) ; ignore commas
-       (map ast)))
+       (map ast)
+       (map (fn [i arg] (assoc arg :index i))
+            (range))))
 
 (defmethod ast :formal-parameter [node]
   (with-line-and-column node :formal-parameter
-   {:type (ast (.getChild node 0)),
-    :name (ast (.getChild node 1))}))
+   {:type  (ast (.getChild node 0)),
+    :name  (ast (.getChild node 1))}))
 
 
 (defmethod ast :type [node]

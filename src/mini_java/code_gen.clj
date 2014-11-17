@@ -16,14 +16,11 @@
 (def ^:private init
   (Method/getMethod "void <init>()"))
 
-(defn- make-constructor [cw]
-  (let [init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)]
-    (doto init-gen
-      (.loadThis)
-      (.invokeConstructor obj-type init)
-      (.returnValue)
-      (.endMethod))
-    init))
+(defn- initial-value [type]
+  (cond
+    :int     (int 0)
+    :boolean false
+    :else    nil))
 
 (def ^:private primitives
   {:int     "int",
@@ -63,12 +60,51 @@
        (.visit cw Opcodes/V1_1 Opcodes/ACC_PUBLIC class-name nil parent nil)
        (make-class cw class-name))))
 
+(defn- make-constructor
+  ([cw]
+     (make-constructor cw nil nil))
+  ([cw fields class-type]
+     (let [init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)]
+       (doto init-gen
+         (.loadThis)
+         (.invokeConstructor obj-type init))
+       (when fields
+         (doseq [[name field] fields]
+           (doto init-gen
+             (.loadThis)
+             (.push (-> field :type initial-value))
+             (.putField class-type
+                        name
+                        (-> field :type type->Type)))))
+       (doto init-gen
+         (.returnValue)
+         (.endMethod))
+       init)))
+
+(defn- locate-arg [name scopes]
+  (->> scopes
+       :method
+       :args
+       (filter (fn eq-name [var]
+                 (= (:name var)
+                    name)))
+       first))
+
+(defn- locate-local [name scopes]
+  (-> scopes
+      :locals
+      (get name)))
 
 
 (defmulti generate (fn [x & _] (ast/context x)))
 
-(defmethod generate :default [x & _]
-  (ast/context x))
+(defmethod generate :default [x scopes generator]
+  (cond
+   (= x :this)
+   (.loadThis generator)
+
+   :else
+   (ast/context x)))
 
 (defmethod generate :main-class-declaration [class scopes]
   (let [class-name (:name class)
@@ -88,11 +124,26 @@
     (.visitEnd cw)
     (.toByteArray cw)))
 
+(defn- generate-fields [fields class-writer]
+  (doseq [[name field] fields]
+    (.visitEnd
+     (.visitField class-writer
+                  Opcodes/ACC_PROTECTED
+                  name
+                  (-> field :type type->descriptor)
+                  nil
+                  nil))))
+
 (defmethod generate :class-declaration [class scopes]
   (let [cw (make-class-writer)
+        class-type (-> class :name type->Type)
         _  (make-class cw (:name class) (:parent class))
-        init (make-constructor cw)]
-    ;;;; TODO: add class fields ;;;;
+        _  (generate-fields (:vars class) cw)
+        init (make-constructor cw (:vars class) class-type)
+        scopes (assoc scopes
+                 :class      class
+                 :class-type class-type)]
+    
 
     ;; generate methods
     (doseq [[name method] (:methods class)]
@@ -113,7 +164,9 @@
 (defn- generate-locals [vars method-gen]
   (-> (fn [m [name var]]
         (assoc m
-          name (generate-local var method-gen)))
+          name (if-not (:index var)
+                 (generate-local var method-gen)
+                 var)))
       (reduce vars vars)))
 
 (defmethod generate :method-declaration [method scopes class-writer]
@@ -127,7 +180,9 @@
         ;; generate-locals creates new locals in the method generator,
         ;; and associates their indices with the local-var-info
         locals (generate-locals (:vars method) meth-gen)
-        scopes (assoc scopes :locals locals)]
+        scopes (assoc scopes
+                 :locals locals
+                 :method method)]
     ;; set start label for recur statement
     (.mark meth-gen start-label)
     ;; generate statements
@@ -178,14 +233,22 @@
   TODO: Only works with locals, fix to work with class fields too."
   ;; put source of assignment on stack
   (generate (:source statement) scopes method-gen)
-  (let [;; get target var (only looks in locals right now)
-        target (-> scopes :locals (get (:target statement)))
-        type (type->Type (:type target))
-        ;; local index
-        index (:index target)]
-    ;; store the top of the stack into target variable
-    (.storeLocal method-gen
-                 index type)))
+  (let [target-name (:target statement)]
+    (or
+     (when-let [target (locate-arg   target-name scopes)]
+       (.storeArg method-gen
+                  (:index target))
+       true)
+     (when-let [target (locate-local target-name scopes)]
+       (.storeLocal method-gen
+                    (:index target)
+                    (-> target :type type->Type))
+       true)
+     (let [target (semantics/locate-var target-name scopes)]
+       (.putField method-gen
+                  (:class-type scopes)
+                  target-name
+                  (-> target :type type->Type))))))
 
 (defmethod generate :print-statement [statement scopes method-gen]
   (.getStatic method-gen
@@ -270,12 +333,30 @@
 (defmethod generate :boolean-lit-expression [expression scopes method-gen]
   (.push method-gen (:value expression)))
 
+
+
 (defmethod generate :identifier-expression [expression scopes method-gen]
   "Load the value bound to the identifier onto the stack.
 
   NOTE: Only works for locals currently, fix this."
-  (let [var (-> scopes :locals (get (:id expression)))]
-    (.loadLocal method-gen (:index var))))
+  (or
+    ;; load method argument
+    (when-let [var (locate-arg (:id expression) scopes)]
+      (.loadArg method-gen (:index var))
+      true)
+    ;; load local variable
+    (when-let [var (locate-local (:id expression) scopes)]
+      (.loadLocal method-gen (:index var))
+      true)
+    ;; load non-static field
+    (let [field (semantics/locate-var (:id expression) scopes)]
+      (.getField method-gen
+                 ;; field owner
+                 (:class-type scopes)
+                 ;; field name
+                 (:id expression)
+                 ;; field type
+                 (type->Type (:type field))))))
 
 (defmethod generate :object-instantiation-expression [expression scopes
                                                       method-gen]

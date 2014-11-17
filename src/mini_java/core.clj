@@ -60,9 +60,10 @@
                (static-semantics/class-table ast parser)]
            ;; exit if there are semantic errors
            (when-not (zero? errors)
-             (exit 1 "Errors occurred."))
+             (exit 1 (str errors " errors occurred.")))
            ;; exit if only static semantics checking is requested
            (when (:static-semantics options)
+             (pprint class-table)
              (exit 0))
 
            (code-gen/write-classes class-table))))
