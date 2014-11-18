@@ -173,7 +173,7 @@
                         :body (:body class)}}}
     (with-meta (meta class))))
 
-(defn- parent-seq [class class-table]
+(defn parent-seq [class class-table]
   "Returns a lazy seq of all parents of the given class."
   (lazy-seq
    (when-let [parent-name (:parent class)]

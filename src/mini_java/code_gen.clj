@@ -50,7 +50,8 @@
        "(" (arg-types (:args method)) ")"))
 
 (defn- make-method [method]
-  (Method/getMethod (method-signature method)))
+  (Method/getMethod (method-signature method)
+                    true))
 
 (defn- make-class
   ([cw class-name]
@@ -62,13 +63,16 @@
 
 (defn- make-constructor
   ([cw]
-     (make-constructor cw nil nil))
-  ([cw fields class-type]
+     (make-constructor cw obj-type))
+  ([cw parent-type]
      (let [init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)]
        (doto init-gen
          (.loadThis)
-         (.invokeConstructor obj-type init))
-       (when fields
+         (.invokeConstructor parent-type init))
+
+       ;; probably don't need this ever
+       ;; delete when more certain
+       #_(when fields
          (doseq [[name field] fields]
            (doto init-gen
              (.loadThis)
@@ -137,12 +141,17 @@
 (defmethod generate :class-declaration [class scopes]
   (let [cw (make-class-writer)
         class-type (-> class :name type->Type)
+        parent-type (if-let [parent (:parent class)]
+                      (type->Type parent)
+                      obj-type)
         _  (make-class cw (:name class) (:parent class))
         _  (generate-fields (:vars class) cw)
-        init (make-constructor cw (:vars class) class-type)
+        init (make-constructor cw parent-type)
         scopes (assoc scopes
                  :class      class
-                 :class-type class-type)]
+                 :class-type class-type
+                 :parents    (semantics/parent-seq class
+                                                   (:class-table scopes)))]
     
 
     ;; generate methods
@@ -159,12 +168,12 @@
         ;; create a new local in the method generator
         index (.newLocal method-gen type)]
     ;; store the index in the var
-    (assoc var :index index)))
+    (assoc var :ref-index index)))
 
 (defn- generate-locals [vars method-gen]
   (-> (fn [m [name var]]
         (assoc m
-          name (if-not (:index var)
+          name (if-not (:arg-index var)
                  (generate-local var method-gen)
                  var)))
       (reduce vars vars)))
@@ -218,7 +227,7 @@
     (.mark method-gen start-label)
     ;; push predicate
     (generate (:pred statement) scopes method-gen)
-    ;; test predicate
+    ;; test predicate, go past body if false
     (.ifZCmp method-gen GeneratorAdapter/EQ end-label)
     ;; while body
     (generate (:body statement) scopes method-gen)
@@ -231,24 +240,57 @@
   "Generate a variable assignment statement.
 
   TODO: Only works with locals, fix to work with class fields too."
-  ;; put source of assignment on stack
-  (generate (:source statement) scopes method-gen)
   (let [target-name (:target statement)]
     (or
-     (when-let [target (locate-arg   target-name scopes)]
+     (when-let [target (locate-arg target-name scopes)]
+       ;; put source of assignment on stack
+       (generate (:source statement) scopes method-gen)
        (.storeArg method-gen
-                  (:index target))
+                  (:arg-index target))
        true)
      (when-let [target (locate-local target-name scopes)]
+         ;; put source of assignment on stack
+       (generate (:source statement) scopes method-gen)
        (.storeLocal method-gen
-                    (:index target)
+                    (:ref-index target)
                     (-> target :type type->Type))
        true)
      (let [target (semantics/locate-var target-name scopes)]
+       (.loadThis method-gen)
+       ;; put source of assignment on stack
+       (generate (:source statement) scopes method-gen)
+       ;; store field
        (.putField method-gen
                   (:class-type scopes)
                   target-name
                   (-> target :type type->Type))))))
+
+(defmethod generate :array-assign-statement [statement scopes method-gen]
+  "Generate an array assignment statement."
+
+  (let [target-name (:target statement)]
+    (or ;; put array reference on stack
+     (when-let [target (locate-arg target-name scopes)]
+       (.loadArg method-gen
+                 (:arg-index target))
+       true)
+     (when-let [target (locate-local target-name scopes)]
+       (.loadLocal method-gen
+                   (:ref-index target)
+                   (-> target :type type->Type))
+       true)
+     (let [target (semantics/locate-var target-name scopes)]
+       (.loadThis method-gen)
+       (.getField method-gen
+                  (:class-type scopes)
+                  target-name
+                  (-> target :type type->Type))))
+    ;; put array index on stack
+    (generate (:index statement) scopes method-gen)
+    ;; put value to store in array on stack
+    (generate (:source statement) scopes method-gen)
+    ;; store value in array
+    (.arrayStore method-gen Type/INT_TYPE)))
 
 (defmethod generate :print-statement [statement scopes method-gen]
   (.getStatic method-gen
@@ -263,6 +305,40 @@
 (defmethod generate :return-statement [statement scopes method-gen label]
   (generate (:return-value statement) scopes method-gen)
   (.returnValue method-gen))
+
+(defn- rebind-arg [argument index scopes method-gen]
+  (generate argument scopes method-gen)
+  (.storeArg method-gen index))
+
+(defmethod generate :recur-statement [statement scopes method-gen start-label]
+  (let [base-label (.newLabel method-gen)]
+    (generate (:pred statement) scopes method-gen)
+    ;; if predicate is false, goto base case
+    (.ifZCmp method-gen GeneratorAdapter/EQ base-label)
+    ;; when predicate is true, evaluate arguments, rebind and recur:
+    ;; evaluate arguments
+    (doseq [arg (:args statement)]
+      (generate arg scopes method-gen))
+    ;; rebind arguments
+    (doseq [index (-> statement :args count range reverse)]
+      (.storeArg method-gen index))
+    ;; recur
+    (.goTo method-gen start-label)
+    ;; base case
+    (.mark method-gen base-label)
+    (generate (:base statement) scopes method-gen)
+    (.returnValue method-gen)))
+
+(defmethod generate :array-access-expression [expression scopes method-gen]
+  (generate (:array expression) scopes method-gen)
+  (generate (:index expression) scopes method-gen)
+  (.arrayLoad method-gen Type/INT_TYPE))
+
+(defmethod generate :array-length-expression [expression scopes method-gen]
+  ;; load array reference on stack
+  (generate (:array expression) scopes method-gen)
+  ;; load length of array reference on stack
+  (.arrayLength method-gen))
 
 (defn- binary-expression [expression scopes method-gen]
   (generate (:left  expression) scopes method-gen)
@@ -310,6 +386,11 @@
   (unary-expression expression scopes method-gen)
   (.math method-gen GeneratorAdapter/NEG Type/INT_TYPE))
 
+(defmethod generate :array-instantiation-expression [expression scopes
+                                                     method-gen]
+  (generate (:size expression) scopes method-gen)
+  (.newArray method-gen Type/INT_TYPE))
+
 (defmethod generate :method-call-expression [expression scopes method-gen]
   ;; push caller onto stack
   (generate (:caller expression) scopes method-gen)
@@ -325,7 +406,7 @@
         signature (method-signature method)]
     (.invokeVirtual method-gen
                     (Type/getObjectType caller-type)
-                    (Method/getMethod signature))))
+                    (Method/getMethod signature true))))
 
 (defmethod generate :int-lit-expression [expression scopes method-gen]
   (.push method-gen (:value expression)))
@@ -342,14 +423,15 @@
   (or
     ;; load method argument
     (when-let [var (locate-arg (:id expression) scopes)]
-      (.loadArg method-gen (:index var))
+      (.loadArg method-gen (:arg-index var))
       true)
     ;; load local variable
     (when-let [var (locate-local (:id expression) scopes)]
-      (.loadLocal method-gen (:index var))
+      (.loadLocal method-gen (:ref-index var))
       true)
     ;; load non-static field
     (let [field (semantics/locate-var (:id expression) scopes)]
+      (.loadThis method-gen)
       (.getField method-gen
                  ;; field owner
                  (:class-type scopes)

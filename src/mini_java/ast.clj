@@ -194,7 +194,7 @@
        children
        (take-nth 2) ; ignore commas
        (map ast)
-       (map (fn [i arg] (assoc arg :index i))
+       (map (fn [i arg] (assoc arg :arg-index i))
             (range))))
 
 (defmethod ast :formal-parameter [node]
@@ -237,7 +237,7 @@
 
 (defmethod ast :array-length-expression [node]
   (with-line-and-column node :array-length-expression
-    (ast (.getChild node 0))))
+    {:array (ast (.getChild node 0))}))
 
 (defmethod ast :method-call-expression [node]
   (with-line-and-column node :method-call-expression

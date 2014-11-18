@@ -1,6 +1,8 @@
 class Simple {
     public static void main(String[] args) {
         {
+            System.out.println(new C().f(10));
+            System.out.println(new C().arr(13));
             System.out.println(new C().fac(10));
             System.out.println(new C().fac_rec(10));
             System.out.println(new C().sum(100));
@@ -9,12 +11,26 @@ class Simple {
 }
 
 class C {
-    int x;
+    public int f(int n) {
+        return this.f_iter(n, 1);
+    }
+
+    public int f_iter(int n, int acc) {
+        recur (1 < n) ? (n-1, n*acc) : n*acc;
+    }
+
+    public int arr(int n) {
+        int[] a;
+
+        a = new int[n];
+
+        return a.length;
+    }
+
     public int fac(int n) {
         int acc;
 
         acc = 1;
-        x = 2;
 
         while (0 < n) {
             acc = acc * n;
