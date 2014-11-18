@@ -17,10 +17,10 @@
   (Method/getMethod "void <init>()"))
 
 (defn- initial-value [type]
-  (cond
+  (case type
     :int     (int 0)
     :boolean false
-    :else    nil))
+    nil))
 
 (def ^:private primitives
   {:int     "int",
