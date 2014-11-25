@@ -113,12 +113,22 @@
     (print-error parser msg line column))
   [(inc error-count) parser])
 
+(def ^:private primitive?
+  #{:int :int<> :boolean})
+
 (defn- subtype? [found required class-table]
-  (or (= found required)
-      (let [found-class (class-table found)]
-        (when-let [parents (parent-seq found-class class-table)]
-          (some (partial = required)
-                (map :name parents))))))
+  (cond
+    (= found required)
+    true
+
+    (primitive? found)
+    false
+
+    :else
+    (let [found-class (class-table found)]
+      (when-let [parents (parent-seq found-class class-table)]
+        (some (partial = required)
+              (map :name parents))))))
 
 (defn- assert-type [found required context scopes error-agent]
   (when-not (or (nil? found)
@@ -339,9 +349,9 @@
   (doseq [statement statements]
     (type-check statement scopes error-agent)))
 
-(defn- get-uninitialized [scopes]
-  (set (filter (fn [[k v]] @(:initialized? v))
-               (-> scopes :method :vars))))
+(defn- get-uninitialized [vars]
+  (set (filter (fn [[k v]] (not @(:initialized? v)))
+               vars)))
 
 (defn- deinitialize [uninitialized]
   (doseq [[name var] uninitialized]
@@ -352,26 +362,47 @@
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
                  pred scopes error-agent))
-  (type-check (:then statement) scopes error-agent)
-  (let [;; set of variables left uninitialized after then part
-        then-uninitialized (get-uninitialized scopes)]
-    (type-check (:else statement) scopes error-agent)
-    (let [;; set of variables left uninitialized after then part
-          else-uninitialized (get-uninitialized scopes)
-          ;; set of variables left uninitialized in one part but
-          ;; not the other
-          either-uninitialized (util/two-way-set-difference then-uninitialized
-                                                            else-uninitialized)]
-      (deinitialize either-uninitialized))))
+  (let [vars
+        (-> scopes :method :vars)
+
+        pre-uninitialized
+        (get-uninitialized vars)
+
+        _
+        (type-check (:then statement) scopes error-agent)
+
+        then-uninitialized
+        (get-uninitialized vars)
+
+        then-initialized
+        (clojure.set/difference pre-uninitialized
+                                then-uninitialized)
+
+        _
+        (deinitialize then-initialized)
+
+        _
+        (type-check (:else statement) scopes error-agent)
+
+        else-uninitialized
+        (get-uninitialized vars)
+
+        either-uninitialized
+        (util/two-way-set-difference then-uninitialized
+                                     else-uninitialized)
+
+        _
+        (deinitialize either-uninitialized)]))
 
 (defmethod type-check :while-statement [statement scopes error-agent]
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
                  pred scopes error-agent))
-  (let [pre-uninitialized (get-uninitialized scopes)]
+  (let [vars (-> scopes :method :vars)
+        pre-uninitialized (get-uninitialized vars)]
     (type-check (:body statement) scopes error-agent)
-    (let [post-uninitialized (get-uninitialized scopes)
+    (let [post-uninitialized (get-uninitialized vars)
           either-uninitialized (util/two-way-set-difference pre-uninitialized
                                                             post-uninitialized)]
       (deinitialize either-uninitialized))))
@@ -398,9 +429,8 @@
         target-var  (locate-var target scopes)
         index-type  (type-check index scopes error-agent)
         source-type (type-check source scopes error-agent)]
-    (reset! (:initialized? target-var) true)
     (assert-type (:type target-var) :int<>
-                 target scopes error-agent)
+                 index scopes error-agent)
     (assert-type index-type :int
                  index scopes error-agent)
     (assert-type source-type :int
