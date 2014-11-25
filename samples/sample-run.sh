@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # Compiles and runs all of the sample programs
-# Display the commands used to run both to show how it's done,
-# and to make it clear which file is being compiled.
+# Displays the commands being run
 
-mkdir target/
+mkdir -p target/
 FILES=`find . -name *.java`
 for f in $FILES
 do
