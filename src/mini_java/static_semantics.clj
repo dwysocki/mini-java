@@ -5,7 +5,8 @@
                                       print-type-error
                                       print-symbol-error
                                       print-arg-types-error
-                                      print-return-type-error]]))
+                                      print-return-type-error]]
+            [mini-java.util   :as    util]))
 
 (declare info type-check parent-seq)
 
@@ -46,11 +47,11 @@
     (print-type-error parser msg line column found required))
   [(inc error-count) parser])
 
-(defn- report-missing-symbol [[error-count parser] context]
+(defn- report-missing-symbol [[error-count parser] context scopes]
   (let [{:keys [line column]} (meta context)
         symbol (:id context)
         msg "cannot find symbol"]
-    (print-symbol-error parser msg line column symbol))
+    (print-symbol-error parser msg line column symbol scopes))
   [(inc error-count) parser])
 
 (defn- report-missing-method [[error-count parser] context method-name]
@@ -62,6 +63,12 @@
 (defn- report-missing-type [[error-count parser] context type]
   (let [{:keys [line column]} (meta context)
         msg (str "cannot find type " type)]
+    (print-error parser msg line column))
+  [(inc error-count) parser])
+
+(defn- report-use-before-init [[error-count parser] context var-name]
+  (let [{:keys [line column]} (meta context)
+        msg (str "variable " var-name " might not have been initialized")]
     (print-error parser msg line column))
   [(inc error-count) parser])
 
@@ -148,18 +155,30 @@
 
 (defmethod info :method-declaration [method error-agent]
   (let [args (:args method)
-        arg-vars (into {} (map (fn [v] [(:name v) v]) args))]
+        arg-vars (into {} (map (fn [v] [(:name v)
+                                        (assoc v
+                                          :initialized? (atom true))])
+                               args))]
     (-> {:name (:name method),
          :type (:type method),
          :args args,
-         :vars (info-map (:vars method) arg-vars error-agent)
+         :vars (->> (info-map (:vars method) arg-vars error-agent)
+                    (map (fn [[k v]]
+                           [k
+                            (if (:initialized? v)
+                              v
+                              (assoc v :initialized? (atom false)))]))
+                    (into {}))
          :body (:body method)}
       (with-meta (meta method)))))
 
 (defmethod info :class-declaration [class error-agent]
   (-> {:name    (:name class),
        :parent  (:parent class),
-       :vars    (info-map (:vars class) error-agent)
+       :vars    (->> (info-map (:vars class) error-agent)
+                     (map (fn [[k v]]
+                            [k (assoc v :initialized? (atom true))]))
+                     (into {}))
        :methods (info-map (:methods class) error-agent)}
     (with-meta (meta class))))
 
@@ -314,20 +333,42 @@
   (doseq [statement statements]
     (type-check statement scopes error-agent)))
 
+(defn- get-uninitialized [scopes]
+  (set (filter (fn [[k v]] @(:initialized? v))
+               (-> scopes :method :vars))))
+
+(defn- deinitialize [uninitialized]
+  (doseq [[name var] uninitialized]
+    (reset! (:initialized? var) false)))
+
 (defmethod type-check :if-else-statement [statement scopes error-agent]
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
                  pred scopes error-agent))
   (type-check (:then statement) scopes error-agent)
-  (type-check (:else statement) scopes error-agent))
+  (let [;; set of variables left uninitialized after then part
+        then-uninitialized (get-uninitialized scopes)]
+    (type-check (:else statement) scopes error-agent)
+    (let [;; set of variables left uninitialized after then part
+          else-uninitialized (get-uninitialized scopes)
+          ;; set of variables left uninitialized in one part but
+          ;; not the other
+          either-uninitialized (util/two-way-set-difference then-uninitialized
+                                                            else-uninitialized)]
+      (deinitialize either-uninitialized))))
 
 (defmethod type-check :while-statement [statement scopes error-agent]
   (let [pred (:pred statement)
         pred-type (type-check pred scopes error-agent)]
     (assert-type pred-type :boolean
                  pred scopes error-agent))
-  (type-check (:body statement) scopes error-agent))
+  (let [pre-uninitialized (get-uninitialized scopes)]
+    (type-check (:body statement) scopes error-agent)
+    (let [post-uninitialized (get-uninitialized scopes)
+          either-uninitialized (util/two-way-set-difference pre-uninitialized
+                                                            post-uninitialized)]
+      (deinitialize either-uninitialized))))
 
 (defmethod type-check :print-statement [statement scopes error-agent]
   "Check that print statement has an int as its argument."
@@ -337,21 +378,22 @@
                  arg scopes error-agent)))
 
 (defmethod type-check :assign-statement [statement scopes error-agent]
-  (let [target (:target statement)
-        source (:source statement)
-        target-type (:type (locate-var target scopes))
+  (let [{:keys [target source]} statement
+        target-var (locate-var target scopes)
         source-type (type-check source scopes error-agent)]
-    (if target-type
-      (assert-type source-type target-type
-                   source scopes error-agent)
-      (send-off error-agent report-missing-symbol statement))))
+    (if target-var
+      (do (assert-type source-type (:type target-var)
+                       source scopes error-agent)
+          (reset! (:initialized? target-var) true))
+      (send-off error-agent report-missing-symbol statement scopes))))
 
 (defmethod type-check :array-assign-statement [statement scopes error-agent]
   (let [{:keys [target index source]} statement
-        target-type (:type (locate-var target scopes))
+        target-var  (locate-var target scopes)
         index-type  (type-check index scopes error-agent)
         source-type (type-check source scopes error-agent)]
-    (assert-type target-type :int<>
+    (reset! (:initialized? target-var) true)
+    (assert-type (:type target-var) :int<>
                  target scopes error-agent)
     (assert-type index-type :int
                  index scopes error-agent)
@@ -460,9 +502,17 @@
 (defmethod type-check :identifier-expression [expression scopes error-agent]
   "Returns the type of the variable which the identifier is bound to.
   If the variable does not exist, reports and error and returns nil."
-  (or (:type (locate-var (:id expression) scopes))
-      (do (send-off error-agent report-missing-symbol expression)
-          nil)))
+  (let [var (locate-var (:id expression) scopes)]
+    (if-not var
+      (do (send-off error-agent report-missing-symbol expression scopes)
+            nil)
+      (let [init (:initialized? var)]
+        ;; check for uninitialized locals
+        (when-not @init
+            (reset! init true)
+            (send-off error-agent
+                      report-use-before-init expression (:name var)))
+        (:type var)))))
 
 (defmethod type-check :array-instantiation-expression [expression scopes
                                                        error-agent]
