@@ -7,5 +7,6 @@ A MiniJava compiler implemented in Clojure.
 
 ```bash
 $ lein antlr4
-$ lein run /path/to/source.java
+$ lein uberjar
+$ java -jar target/mini-javac.jar --help
 ```
