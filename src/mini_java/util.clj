@@ -15,3 +15,8 @@
   (-> s
       (clojure.string/replace #"([a-z])([A-Z])" "$1-$2")
       clojure.string/lower-case))
+
+(defn two-way-set-difference [s1 s2]
+  (clojure.set/union
+    (clojure.set/difference s1 s2)
+    (clojure.set/difference s2 s1)))
