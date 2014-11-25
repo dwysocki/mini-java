@@ -50,8 +50,8 @@
 (defn- symbol-string [symbol]
   (str "  symbol:   variable " symbol))
 
-(defn- location-string [symbol]
-  (str "  location: class FIXME"))
+(defn- location-string [class]
+  (str "  location: class " class))
 
 (def ^:private type-str-map
   {:int     "int",
@@ -71,11 +71,11 @@
     (println (required-string (type-str required)))
     (println (found-string    (type-str found)))))
 
-(defn print-symbol-error [parser msg line column symbol]
+(defn print-symbol-error [parser msg line column symbol scopes]
   (print-error parser msg line column)
   (binding [*out* *err*]
     (println (symbol-string symbol))
-    (println (location-string symbol))))
+    (println (location-string (-> scopes :class :name)))))
 
 (defn print-arg-types-error [parser msg line column given-types required-types]
   (print-error parser msg line column)
