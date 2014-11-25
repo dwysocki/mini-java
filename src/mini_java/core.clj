@@ -7,14 +7,16 @@
   (:gen-class))
 
 (def cli-options
-  [[nil "--syntax"
+  [["-d" "--directory DIR" "Destination directory for class files"
+    :default "."]
+   [nil "--syntax"
     "Stop after syntax checking"]
    [nil "--static-semantics"
     "Stop after static semantics checking"]
    ["-h" "--help"]])
 
 (defn usage [options-summary]
-  (->> ["Usage: mini-javac [options] action"
+  (->> ["Usage: mini-javac [options] filename"
         ""
         "Options:"
         options-summary]
@@ -66,5 +68,5 @@
              (pprint class-table)
              (exit 0))
 
-           (code-gen/write-classes class-table))))
+           (code-gen/write-classes class-table (:directory options)))))
      nil))

@@ -448,11 +448,13 @@
       (.dup)
       (.invokeConstructor obj-type init))))
 
-(defn- write-class [name bytes]
-  (with-open [o (clojure.java.io/output-stream (str name ".class"))]
+(defn- write-class [name directory bytes]
+  (with-open [o (->> (str name ".class")
+                     (clojure.java.io/file directory)
+                     clojure.java.io/output-stream)]
     (.write o bytes)))
 
-(defn write-classes [class-table]
+(defn write-classes [class-table directory]
   (let [scopes {:class-table class-table}]
     (doseq [[name class] class-table]
-      (write-class name (generate class scopes)))))
+      (write-class name directory (generate class scopes)))))
