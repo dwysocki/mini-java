@@ -306,6 +306,12 @@
          this-class (:class scopes)]
      (:name this-class))))
 
+(defmethod type-check :main-class-declaration [class scopes error-agent]
+  (let [scopes (assoc scopes :class class)]
+    (type-check (-> class :methods :main :body)
+                scopes
+                error-agent)))
+
 (defmethod type-check :class-declaration [class scopes error-agent]
   (let [scopes (assoc scopes :class class)]
     (doseq [var (vals (:vars class))]

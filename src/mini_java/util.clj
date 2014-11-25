@@ -1,4 +1,5 @@
-(ns mini-java.util)
+(ns mini-java.util
+  (:require clojure.set))
 
 (defn parser-filename [parser]
   (-> parser
