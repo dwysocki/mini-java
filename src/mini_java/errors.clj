@@ -15,15 +15,15 @@
   (let [whitespace (filter #(Character/isWhitespace %)
                            (take index error-line))
         remaining  (- index (count whitespace))]
-    (str (apply str whitespace)
-         (apply str (repeat remaining " "))
+    (str (clojure.string/join whitespace)
+         (clojure.string/join (repeat remaining " "))
          "^")))
 
 (defn underline-error [recognizer line column]
   (let [tokens     (.getInputStream recognizer)
         lines      (-> tokens
                        .getTokenSource .getInputStream .toString
-                       (.split "\n"))]
+                       (clojure.string/split "\n"))]
     (if (> line (alength lines))
       ; reached EOF
       (do
