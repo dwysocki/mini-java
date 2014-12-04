@@ -38,6 +38,11 @@
      (println msg)
      (System/exit status)))
 
+(defn errors-occured [n]
+  (str n " error"
+       (if (= 1 n) "" "s")
+       " occurred."))
+
 (defn -main
   "Parse the command line arguments and perform the compilation."
   [& args]
@@ -56,10 +61,10 @@
     ;; begin compilation process
     (let [source-file (first arguments)
           ;; parse AST from source file
-          [ast parser] (parser/mini-java source-file)]
+          [ast parser errors] (parser/mini-java source-file)]
       ;; exit if there are syntax errors
-      (when (nil? ast)
-        (exit 1 "Errors occurred."))
+      (when (pos? errors)
+        (exit 1 (errors-occured errors)))
       ;; exit if only syntax checking is requested
       (when (:syntax options)
         (exit 0))
@@ -69,9 +74,7 @@
             (static-semantics/class-table ast parser)]
         ;; exit if there are semantic errors
         (when-not (zero? errors)
-          (exit 1 (str errors " error"
-                       (if (= 1 errors) "" "s")
-                       " occurred.")))
+          (exit 1 (errors-occured errors)))
         ;; exit if only static semantics checking is requested
         (when (:static-semantics options)
           (exit 0))
