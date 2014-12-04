@@ -21,11 +21,8 @@
     (when expecting
       (str expecting tokens-str))))
 
-(defn- input-mismatch-msg [parser exception token-str]
-  (case token-str
-    nil))
-
 (defn -reportInputMismatch [this parser exception]
+  "Reports an input mismatch error."
   (let [token     (.getOffendingToken exception)
         token-str (str "'" (.getText token) "'")
         expecting (expecting-str parser exception)
@@ -35,6 +32,8 @@
     (.notifyErrorListeners parser msg)))
 
 (defn -reportMissingToken [this parser]
+  "Reports a missing token."
+  ;; in error recovery mode, this method does nothing
   (when-not (.inErrorRecoveryMode this parser)
     (.parentBeginErrorCondition this parser)
     (let [token (.getCurrentToken parser)
@@ -45,25 +44,19 @@
       (.notifyErrorListeners parser msg))))
 
 (defn -reportUnwantedToken [this parser]
+  "Reports an unwanted token."
+  ;; in error recovery mode, this method does nothing
   (when-not (.inErrorRecoveryMode this parser)
     (.parentBeginErrorCondition this parser)
     (let [token (.getCurrentToken parser)
-          msg (str "extraneous '" (.getText token) "' inserted")]
+          msg (str "extraneous '"
+                   (.getText token)
+                   "' inserted")]
       (.notifyErrorListeners parser msg))))
 
-(defn- alternative-msg [token context]
-  (let [token-str (.getText token)]
-    (case token-str
-      "return"
-      "return outside end of method"
-
-      "recur"
-      "recur outside end of method"
-
-      (str "unexpected " token-str))))
-
 (defn -reportNoViableAlternative [this parser exception]
+  "Reports an unexpected token with no viable alternative."
   (let [token (.getCurrentToken parser)
         context (.getContext parser)
-        msg (alternative-msg token context)]
+        msg (str "unexpected " (.getText token))]
     (.notifyErrorListeners parser msg)))
