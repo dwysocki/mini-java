@@ -1,4 +1,6 @@
 (ns mini-java.errors
+  "Utility functions for printing errors.
+  Used in both parse errors and static semantics errors."
   (:require [mini-java.util :refer [parser-filename]]))
 
 (defn underline-str [error-line index]
@@ -19,23 +21,25 @@
          (clojure.string/join (repeat remaining " "))
          "^")))
 
-(defn underline-error [recognizer line column]
-  (let [tokens     (.getInputStream recognizer)
+(defn underline-error [parser line column]
+  "Prints the line on which the current error occurred, and underlines
+  the error with a ^"
+  (let [tokens     (.getInputStream parser)
         lines      (-> tokens
                        .getTokenSource .getInputStream .toString
                        (clojure.string/split "\n"))]
     (if (> line (alength lines))
-      ; reached EOF
-      (do
-        (println "<EOF>")
-        (println "^"))
-      ; did not reach EOF
+      ; reached EOF, underline that
+      (println "<EOF>\n^")
+      ; did not reach EOF, do a more descriptive underline
       (let [error-line (aget lines (dec line))
             underline  (underline-str error-line column)]
         (println error-line)
         (println underline)))))
 
 (defn print-error [parser msg line column]
+  "Prints the given error msg along with the file, line, and column in which
+  it occurred. This is used for _all_ errors."
   (let [filename (parser-filename parser)]
     (binding [*out* *err*]
       (println (str filename ":" line ": error: " msg))
@@ -63,27 +67,32 @@
   (get type-str-map type type))
 
 (defn- arg-types-str [arg-types]
+  "Returns the string representation of a list of argument types"
   (clojure.string/join "," (map type-str arg-types)))
 
 (defn print-type-error [parser msg line column found required]
+  "Prints a type mismatch error"
   (print-error parser msg line column)
   (binding [*out* *err*]
     (println (required-string (type-str required)))
     (println (found-string    (type-str found)))))
 
 (defn print-symbol-error [parser msg line column symbol scopes]
+  "Prints an unknown symbol error"
   (print-error parser msg line column)
   (binding [*out* *err*]
     (println (symbol-string symbol))
     (println (location-string (-> scopes :class :name)))))
 
 (defn print-arg-types-error [parser msg line column given-types required-types]
+  "Prints an argument type mismatch error"
   (print-error parser msg line column)
   (binding [*out* *err*]
     (println (required-string (arg-types-str required-types)))
     (println (found-string    (arg-types-str given-types)))))
 
 (defn print-return-type-error [parser msg line column child-type parent-type]
+  "Prints a return type mismatch error"
   (print-error parser msg line column)
   (binding [*out* *err*]
     (println (required-string (type-str parent-type)))
