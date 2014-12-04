@@ -1,4 +1,5 @@
 (ns mini-java.ErrorHandler
+  "Extends ANTLR's DefaultErrorStrategy to implement custom error messages."
   (:require [mini-java.errors :refer [print-error]]
             [mini-java.util   :as    util])
   (:gen-class
