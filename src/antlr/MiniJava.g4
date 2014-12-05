@@ -1,4 +1,4 @@
-/** Mini-Java grammar **/
+/** Mini-Java ANTLR4 grammar **/
 
 grammar MiniJava;
 
