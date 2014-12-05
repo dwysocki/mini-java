@@ -91,19 +91,7 @@
      (let [init-gen (GeneratorAdapter. Opcodes/ACC_PUBLIC init nil nil cw)]
        (doto init-gen
          (.loadThis)
-         (.invokeConstructor parent-type init))
-
-       ;; probably don't need this ever
-       ;; delete when more certain
-       #_(when fields
-         (doseq [[name field] fields]
-           (doto init-gen
-             (.loadThis)
-             (.push (-> field :type initial-value))
-             (.putField class-type
-                        name
-                        (-> field :type type->Type)))))
-       (doto init-gen
+         (.invokeConstructor parent-type init)
          (.returnValue)
          (.endMethod))
        init)))
@@ -143,8 +131,8 @@
 
    :else
    (throw (ex-info "Unknown context"
-                   {:type   :unknown-context
-                    :node   x
+                   {:type   :unknown-context,
+                    :node   x,
                     :scopes scopes}))))
 
 (defmethod generate :main-class-declaration [class scopes]
