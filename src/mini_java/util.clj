@@ -1,7 +1,9 @@
 (ns mini-java.util
-  (:require clojure.set))
+  "Miscellaneous utility functions."
+  (:require [clojure.set :as set]))
 
 (defn parser-filename [parser]
+  "Given an ANTLR parser, returns the name of the file it is parsing."
   (-> parser
       .getInputStream
       .getSourceName))
@@ -13,11 +15,15 @@
     [line column]))
 
 (defn camel->lisp [s]
+  "Converts CamelCase to lisp-case."
   (-> s
       (clojure.string/replace #"([a-z])([A-Z])" "$1-$2")
       clojure.string/lower-case))
 
 (defn two-way-set-difference [s1 s2]
-  (clojure.set/union
-    (clojure.set/difference s1 s2)
-    (clojure.set/difference s2 s1)))
+  "Given two sets, returns all of the elements which are only contained in a
+  single set.
+
+  This is done by the set operation: (s1 - s2) ∪ (s2 - s1)."
+  (set/union (set/difference s1 s2)
+             (set/difference s2 s1)))
