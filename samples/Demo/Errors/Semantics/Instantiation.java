@@ -11,15 +11,15 @@ class I {
         
         while (i < 0) {
             x = 1;
-            i = i - 1;
+            y = i - 1;
         }
 
         if (i < 0) {
             x = 1;
         } else {
-            i = i - 1;
+            y = i - 1;
         }
 
-        return x + 1;
+        return x + y;
     }
 }
