@@ -1,198 +1,222 @@
 (ns mini-java.static-semantics
-  (:require [clojure.walk     :refer [walk]]
-            [mini-java.ast    :as    ast]
+  "Performs static semantic checks on ASTs, and creates a class table.
+  Static semantics includes type checking, name resolution, and minimal
+  data flow analysis."
+  (:require [mini-java.ast    :as    ast]
             [mini-java.errors :refer [print-error
                                       print-type-error
-                                      print-symbol-error
-                                      print-arg-types-error
-                                      print-return-type-error]]
+                                      print-symbol-error]]
             [mini-java.util   :as    util]))
 
 (declare info type-check parent-seq)
 
 (def ^:private context->type
+  "Maps several context keywords to a string describing their type for use
+  in error reporting."
   {:method-declaration "method",
    :class-declaration  "class",
-   :var-declaration    "variable"})
+   :var-declaration    "variable",
+   :formal-parameter   "argument"})
 
-(defn- initial [type]
-  (case type
-    :int 0
-    :boolean false
-    nil))
+(defn- type-from-context [x]
+  (-> x ast/context context->type))
 
-(defn- report-duplicate [[error-count parser] obj]
-  (let [{:keys [context line column]} (meta obj)
-        msg (str "duplicate " (context->type context) ": "
-                 (:name obj))]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(def ^:private type-str-map
+  {:int     "int",
+   :boolean "boolean",
+   :int<>   "int[]"})
 
-(defn- report-shadow [[error-count parser] child var]
-  (let [{:keys [line column]} (meta var)
-        msg (str "class " (:name child) " "
-                 "shadows variable " (:name var))]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- type-str [type]
+  "Returns the string representation of type"
+  (get type-str-map type type))
 
-(defn- report-cyclic-inheritance [[error-count parser] class]
-  (let [{:keys [line column]} (meta class)
-        msg (str "cyclic inheritance involving " (:name class))]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- arg-types-str [arg-types]
+  "Returns the string representation of a list of argument types"
+  (clojure.string/join "," (map type-str arg-types)))
 
-(defn- report-bad-type [[error-count parser] context found required]
-  (let [{:keys [line column]} (meta context)
-        msg "incompatible types"]
-    (print-type-error parser msg line column found required))
-  [(inc error-count) parser])
+(defn- report* [error-agent msg meta & {:keys [found  required
+                                               symbol location]}]
+  (let [{:keys [line column]} meta
+        [error-count parser]  error-agent]
+    (cond
+      found  (print-type-error   parser msg line column found  required)
+      symbol (print-symbol-error parser msg line column symbol location)
+      :else  (print-error        parser msg line column))
+    [(inc error-count) parser]))
 
-(defn- report-missing-symbol [[error-count parser] context scopes]
-  (let [{:keys [line column]} (meta context)
-        symbol (:id context)
-        msg "cannot find symbol"]
-    (print-symbol-error parser msg line column symbol scopes))
-  [(inc error-count) parser])
+(defn- report-duplicate [error-agent obj]
+  "Reports a duplicate class/method/variable."
+  (let [msg (str "duplicate " (type-from-context obj) ": " (:name obj))]
+    (report* error-agent msg (meta obj))))
 
-(defn- report-missing-method [[error-count parser] context method-name]
-  (let [{:keys [line column]} (meta context)
-        msg (str "cannot find method " method-name)]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-shadow [error-agent child var]
+  "Reports a class shadowing one of its parents' fields."
+  (let [msg (str "class "             (:name child)
+                 " shadows variable " (:name var))]
+    (report* error-agent msg (meta var))))
 
-(defn- report-missing-type [[error-count parser] context type]
-  (let [{:keys [line column]} (meta context)
-        msg (str "cannot find type " type)]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-cyclic-inheritance [error-agent class]
+  "Reports a cyclic inheritance."
+  (let [msg (str "cyclic inheritance involving " (:name class))]
+    (report* error-agent msg (meta class))))
 
-(defn- report-use-before-init [[error-count parser] context var-name]
-  (let [{:keys [line column]} (meta context)
-        msg (str "variable " var-name " might not have been initialized")]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-bad-type [error-agent context found required]
+  (let [msg "incompatible types"]
+    (report* error-agent msg (meta context)
+             :found    (type-str found)
+             :required (type-str required))))
 
-(defn- report-number-of-args [[error-count parser] context n-required]
-  (let [{:keys [line column]} (meta context)
-        msg (str "wrong number of args given (" n-required " required)")]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-missing-symbol [error-agent context scopes]
+  (let [symbol   (:id context)
+        location (-> scopes :class :name)
+        msg      "cannot find symbol"]
+    (report* error-agent msg (meta context)
+             :symbol   symbol
+             :location location)))
 
-(defn- report-type-args [[error-count parser]
-                         given-types required-types context]
-  (let [{:keys [line column]} (meta context)
-        msg "method cannot be applied to given types"]
-    (print-arg-types-error parser msg line column given-types required-types))
-  [(inc error-count) parser])
+(defn- report-missing-method [error-agent context method-name]
+  (let [msg (str "cannot find method " method-name)]
+    (report* error-agent msg (meta context))))
 
-(defn- report-overload [[error-count parser] context child-type parent-type]
-  (let [{:keys [line column]} (meta context)
-        msg (str "method " (:name context) " overloads parent method")]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-missing-type [error-agent context type]
+  (let [msg (str "cannot find type " type)]
+    (report* error-agent msg (meta context))))
 
-(defn- report-return-type [[error-count parser] context child-type parent-type]
-  (let [{:keys [line column]} (meta context)
-        msg (str "method " (:name context) " "
-                 "overrides parent method with wrong type")]
-    (print-return-type-error parser msg line column child-type parent-type))
-  [(inc error-count) parser])
+(defn- report-use-before-init [error-agent context var-name]
+  (let [msg (str "variable " var-name " might not have been initialized")]
+    (report* error-agent msg (meta context))))
 
-(defn- report-no-return [[error-count parser] method]
-  (let [{:keys [line column]} (meta method)
-        msg (str "method " (:name method) " does not return")]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+(defn- report-number-of-args [error-agent context n-required]
+  (let [msg (str "wrong number of args given (" n-required " required)")]
+    (report* error-agent msg (meta context))))
 
-(defn- report-non-tail-return [[error-count parser] statement]
-  (let [{:keys [line column context]} (meta statement)
-        statement-type (if (= context :return-statement)
+(defn- report-type-args [error-agent given-types required-types context]
+  (let [msg "method cannot be applied to given types"]
+    (report* error-agent msg (meta context)
+             :found    (arg-types-str given-types)
+             :required (arg-types-str required-types))))
+
+(defn- report-overload [error-agent context child-type parent-type]
+  (let [msg (str "method " (:name context) " overloads parent method")]
+    (report* error-agent msg (meta context))))
+
+(defn- report-return-type [error-agent context child-type parent-type]
+  (let [msg (str "method " (:name context)
+                 " overrides parent method with wrong type")]
+    (report* error-agent msg (meta context)
+             :found    (type-str child-type)
+             :required (type-str parent-type))))
+
+(defn- report-no-return [error-agent method]
+  (let [msg (str "method " (:name method) " does not return")]
+    (report* error-agent msg (meta method))))
+
+(defn- report-non-tail-return [error-agent statement]
+  (let [statement-type (if (= :return-statement
+                              (ast/context statement))
                          "return"
                          "recur")
         msg (str statement-type " only allowed from tail position of method")]
-    (print-error parser msg line column))
-  [(inc error-count) parser])
+    (report* error-agent msg (meta statement))))
 
 (def ^:private primitive?
   #{:int :int<> :boolean})
 
-(defn- subtype? [found required class-table]
+(defn- subtype? [child parent class-table]
+  "Returns whether or not child is a subtype of parent."
   (cond
-    (= found required)
+    ;; anything is a subtype of itself
+    (= child parent)
     true
-
-    (primitive? found)
+    ;; primitives are _only_ subtypes of themselves
+    (primitive? child)
     false
-
+    ;; if everything above failed, must either be a true child of parent,
+    ;; or just not a subtype
     :else
-    (let [found-class (class-table found)]
-      (when-let [parents (parent-seq found-class class-table)]
-        (some (partial = required)
+    (let [child-class (class-table child)]
+      (when-let [parents (parent-seq child-class class-table)]
+        (some (partial = parent)
               (map :name parents))))))
 
 (defn- assert-type [found required context scopes error-agent]
-  (when-not (or (nil? found)
-                (nil? required))
-    (when-not (subtype? found required (:class-table scopes))
-      (send-off error-agent report-bad-type context found required))))
+  "Reports a type mismatch if the found type is not a subtype of the required
+  type. If either type is nil, then the error occurred earlier, and would have
+  been reported."
+  (when (and found
+             required
+             (not (subtype? found required
+                            (:class-table scopes))))
+    (send-off error-agent report-bad-type context found required)))
 
 (defn- assert-type-exists [type class-table context error-agent]
-  (when-not (or (class-table type)
-                (ast/primitives type))
+  "Reports a missing type if the given type does not exist."
+  (when-not (or (primitive?  type)
+                (class-table type))
     (send-off error-agent report-missing-type context type)))
 
 (defn- info-map
-  ([seq error-agent]
-     (info-map seq {} error-agent))
-  ([seq init error-agent]
+  "Constructs a mapping of element names to the result of applying the info
+  function to the elements in the given collection. If an element is already
+  contained in the map, a duplicate error is reported. An initial map can be
+  optionally provided."
+  ([coll error-agent]
+     (info-map coll {} error-agent))
+  ([coll init error-agent]
      (-> (fn [r elem]
            (let [{:keys [name] :as info} (info elem error-agent)]
              (if (get r name)
                (do (send-off error-agent report-duplicate elem)
                    r)
                (assoc r name info))))
-         (reduce init seq))))
+         (reduce init coll))))
 
-(defmulti info (fn [x & args] (ast/context x)))
+(defmulti info
+  "Takes a node in the AST, and extracts information from it. At the top level,
+  info returns a class table."
+  (fn [x & args] (ast/context x)))
 
 (defmethod info :default [obj error-agent]
-  obj)
+  "If none of the contexts is matched, it is a bug. Crash."
+  (throw (ex-info "Unknown context."
+                  {:type :unknown-context
+                   :node obj})))
 
 (defmethod info :var-declaration [var error-agent]
-  (-> {:name (:name var),
-       :type (:type var)}
-    (with-meta (meta var))))
+  "Variable declarations are always uninitialized at first."
+  (assoc var :initialized? (atom false)))
+
+(defmethod info :formal-parameter [var error-agent]
+  "Formal parameters are argument variables, and therefore do not need to be
+  initialized."
+  (assoc var :initialized? (atom true)))
 
 (defmethod info :method-declaration [method error-agent]
+  "Extracts the information from a method declaration, consolidating its
+  variables into an info-map, and reporting duplicates."
   (let [args (:args method)
-        arg-vars (into {} (map (fn [v] [(:name v)
-                                        (assoc v
-                                          :initialized? (atom true))])
-                               args))]
+        ;; create hash map of argument variables
+        arg-vars (info-map args error-agent)]
     (-> {:name (:name method),
          :type (:type method),
          :args args,
-         :vars (->> (info-map (:vars method) arg-vars error-agent)
-                    (map (fn [[k v]]
-                           [k
-                            (if (:initialized? v)
-                              v
-                              (assoc v :initialized? (atom false)))]))
-                    (into {}))
+         ;; combine local and argument variables into a single map
+         :vars (info-map (:vars method) arg-vars error-agent)
          :body (:body method)}
       (with-meta (meta method)))))
 
 (defmethod info :class-declaration [class error-agent]
+  "Extracts the information from a class declaration, applying the info-map
+  function to its methods and fields to both organize them and report
+  duplicates."
   (-> {:name    (:name class),
        :parent  (:parent class),
-       :vars    (->> (info-map (:vars class) error-agent)
-                     (map (fn [[k v]]
-                            [k (assoc v :initialized? (atom true))]))
-                     (into {}))
+       :vars    (info-map (:vars class) error-agent)
        :methods (info-map (:methods class) error-agent)}
     (with-meta (meta class))))
 
 (defmethod info :main-class-declaration [class error-agent]
+  "Rearranges the information in a main class declaration."
   (-> {:name    (:name class)
        :main?   true
        :vars    ()
@@ -203,22 +227,25 @@
     (with-meta (meta class))))
 
 (defn parent-seq [class class-table]
-  "Returns a lazy seq of all parents of the given class."
+  "Returns a recursive lazy seq of all parents of the given class."
   (lazy-seq
    (when-let [parent-name (:parent class)]
      (let [parent (class-table parent-name)]
        (cons parent (parent-seq parent class-table))))))
 
 (defn locate-var [id scopes]
+  "Locates the variable referenced by the id.
+  First searches the variables local to the method, then the fields of the
+  class, and finally recursively searches the fields of the parent class(es)."
   (or (-> scopes :method :vars (get id))
       (-> scopes :class  :vars (get id))
       (loop [parents (:parents scopes)]
         (when (seq parents)
-         (let [parent (first parents)
-               vars   (:vars parent)]
-           (if-let [var (get vars id)]
-             var
-             (recur (next parents))))))))
+          (let [parent (first parents)
+                vars   (:vars parent)]
+            (if-let [var (get vars id)]
+              var
+              (recur (next parents))))))))
 
 (defn locate-method [class method-name scopes]
   "Returns the method bound to method-name by traversing class'
@@ -232,15 +259,18 @@
       (recur parent method-name scopes))))
 
 (defn- check-arg-count [given-args required-args error-agent]
+  "Check that the number of given arguments match the number required for
+  the method call."
   (let [n-given    (count given-args)
         n-required (count required-args)]
-    (if (= n-given n-required)
+    (or
       ;; correct number of arguments given
-      true
+      (= n-given n-required)
       ;; wrong number of arguments given
       (send-off error-agent report-number-of-args given-args n-required))))
 
 (defn- check-arg-types [given-args required-args scopes error-agent]
+  ""
   (let [given-types (map #(type-check % scopes error-agent) given-args)
         required-types (map :type required-args)]
     (if (every? identity (map #(subtype? %1 %2 (:class-table scopes))
@@ -339,11 +369,14 @@
         (type-check statement scopes error-agent))
       ;; check that last statement is a return statement
       (let [final-statement (last statements)
-            final-statement-type (ast/context final-statement)]
-        (when-not (or (= final-statement-type :return-statement)
-                      (= final-statement-type :recur-statement))
+            final-statement-type (ast/context final-statement)
+            tail-rec? (or (= final-statement-type :return-statement)
+                          (= final-statement-type :recur-statement))]
+        (when-not tail-rec?
           (send-off error-agent report-no-return method))
-        (type-check final-statement (assoc scopes :tail? true) error-agent)))))
+        
+        (type-check final-statement
+                    (assoc scopes :tail-rec? tail-rec?) error-agent)))))
 
 (defmethod type-check :nested-statement [statements scopes error-agent]
   (doseq [statement statements]
@@ -444,7 +477,7 @@
     (assert-type return-value-type method-return-type
                  return-value scopes error-agent)
     ;; check that return is from tail position
-    (when-not (:tail? scopes)
+    (when-not (:tail-rec? scopes)
       (send-off error-agent report-non-tail-return statement))))
 
 (defmethod type-check :recur-statement [statement scopes error-agent]
@@ -460,7 +493,7 @@
                  base scopes error-agent)
     (check-args args required-args statement scopes error-agent)
     ;; check that recur is from tail position
-    (when-not (:tail? scopes)
+    (when-not (:tail-rec? scopes)
       (send-off error-agent report-non-tail-return statement))))
 
 (defn- binary-op-type-check [expression type scopes error-agent]
@@ -607,7 +640,9 @@
    (reduce class-table (keys class-table))))
 
 (defn class-table [ast parser]
-  (let [error-agent (agent [0 parser])
+  (let [;; error agent keeps a count of all errors detected
+        ;; errors are sent to it, and reported asynchronously
+        error-agent (agent [0 parser])
         ;; put main in class table
         class-table (info-map [(:main ast)] error-agent)
         ;; put other classes in class table
