@@ -48,7 +48,8 @@ functions in the `mini-java.ast` namespace.
 Static semantics (type checking and name resolution) was performed on the
 AST using functions I wrote in the `mini-java.static-semantics` namespace.
 This ensures that no errors beyond mere syntax errors survived until
-compilation time. 
+compilation time. Errors are reported in a manner that is almost consistent
+with `javac`.
 
 After static semantics checking succeeds, the AST is transformed once again,
 in the `mini-java.code-gen` namespace, this time into valid JVM bytecode.
