@@ -7,6 +7,8 @@
 
 (def cli-options
   [["-d" "--directory DIR" "Destination directory for class files"
+    :validate [#(.exists (clojure.java.io/file %))
+               "Must be an existing directory"]
     :default "."]
    [nil "--syntax"
     "Stop after syntax checking"]
