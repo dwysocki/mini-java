@@ -1,0 +1,27 @@
+pom.xml
+pom.xml.asc
+*jar
+*.class
+/lib/
+/classes/
+/target/
+/checkouts/
+.lein-deps-sum
+.lein-repl-history
+.lein-plugins/
+.lein-failures
+
+
+# ANTLR stuff
+
+/src/antlr/*
+!/src/antlr/*.g4
+
+
+# Marginalia stuff
+
+/doc/
+
+
+# emacs autosave
+*~
