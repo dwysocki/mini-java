@@ -9,6 +9,8 @@ given by Cambridge University can be compiled down to JVM bytecode. In addition
 to the Cambridge grammar, my own personal addition to the language -- a recur
 statement -- is correctly parsed and compiled.
 
+API documentation is provided [here](https://dwysocki.github.io/mini-java/toc.html).
+
 
 ## Running
 
