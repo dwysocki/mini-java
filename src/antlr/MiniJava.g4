@@ -35,7 +35,12 @@ mainMethodDeclaration
     ;
 
 classBody
-    :   '{' varDeclaration* methodDeclaration* '}'
+    :   '{' fieldDeclaration*
+            methodDeclaration* '}'
+    ;
+
+fieldDeclaration
+    :   type ID ';'
     ;
 
 varDeclaration

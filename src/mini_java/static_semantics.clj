@@ -15,10 +15,13 @@
   in error reporting."
   {:method-declaration "method",
    :class-declaration  "class",
+   :field-declaration  "field",
    :var-declaration    "variable",
    :formal-parameter   "argument"})
 
-(defn- type-from-context [x]
+(defn- type-from-context
+  "Returns the string type description of a given context."
+  [x]
   (-> x ast/context context->type))
 
 (def ^:private type-str-map
@@ -26,16 +29,20 @@
    :boolean "boolean",
    :int<>   "int[]"})
 
-(defn- type-str [type]
+(defn- type-str
   "Returns the string representation of type"
+  [type]
   (get type-str-map type type))
 
-(defn- arg-types-str [arg-types]
+(defn- arg-types-str
   "Returns the string representation of a list of argument types"
+  [arg-types]
   (clojure.string/join "," (map type-str arg-types)))
 
-(defn- report* [error-agent msg meta & {:keys [found  required
-                                               symbol location]}]
+(defn- report*
+  "General error reporting function."
+  [error-agent msg meta & {:keys [found  required
+                                  symbol location]}]
   (let [{:keys [line column]} meta
         [error-count parser]  error-agent]
     (cond
@@ -44,29 +51,36 @@
       :else  (print-error        parser msg line column))
     [(inc error-count) parser]))
 
-(defn- report-duplicate [error-agent obj]
+(defn- report-duplicate
   "Reports a duplicate class/method/variable."
+  [error-agent obj]
   (let [msg (str "duplicate " (type-from-context obj) ": " (:name obj))]
     (report* error-agent msg (meta obj))))
 
-(defn- report-shadow [error-agent child var]
+(defn- report-shadow
   "Reports a class shadowing one of its parents' fields."
+  [error-agent child var]
   (let [msg (str "class "             (:name child)
                  " shadows variable " (:name var))]
     (report* error-agent msg (meta var))))
 
-(defn- report-cyclic-inheritance [error-agent class]
+(defn- report-cyclic-inheritance
   "Reports a cyclic inheritance."
+  [error-agent class]
   (let [msg (str "cyclic inheritance involving " (:name class))]
     (report* error-agent msg (meta class))))
 
-(defn- report-bad-type [error-agent context found required]
+(defn- report-bad-type
+  "Reports a bad type."
+  [error-agent context found required]
   (let [msg "incompatible types"]
     (report* error-agent msg (meta context)
              :found    (type-str found)
              :required (type-str required))))
 
-(defn- report-missing-symbol [error-agent context scopes]
+(defn- report-missing-symbol
+  "Reports a symbol is missing."
+  [error-agent context scopes]
   (let [symbol   (:id context)
         location (-> scopes :class :name)
         msg      "cannot find symbol"]
@@ -74,44 +88,62 @@
              :symbol   symbol
              :location location)))
 
-(defn- report-missing-method [error-agent context method-name]
+(defn- report-missing-method
+  "Reports a method is missing."
+  [error-agent context method-name]
   (let [msg (str "cannot find method " method-name)]
     (report* error-agent msg (meta context))))
 
-(defn- report-missing-type [error-agent context type]
+(defn- report-missing-type
+  "Reports a type is missing."
+  [error-agent context type]
   (let [msg (str "cannot find type " type)]
     (report* error-agent msg (meta context))))
 
-(defn- report-use-before-init [error-agent context var-name]
+(defn- report-use-before-init
+  "Reports a variable is used before initialization."
+  [error-agent context var-name]
   (let [msg (str "variable " var-name " might not have been initialized")]
     (report* error-agent msg (meta context))))
 
-(defn- report-number-of-args [error-agent context n-required]
+(defn- report-number-of-args
+  "Reports a method is called with the wrong number of arguments."
+  [error-agent context n-required]
   (let [msg (str "wrong number of args given (" n-required " required)")]
     (report* error-agent msg (meta context))))
 
-(defn- report-type-args [error-agent given-types required-types context]
+(defn- report-type-args
+  "Reports a method is called with the wrong types of arguments."
+  [error-agent given-types required-types context]
   (let [msg "method cannot be applied to given types"]
     (report* error-agent msg (meta context)
              :found    (arg-types-str given-types)
              :required (arg-types-str required-types))))
 
-(defn- report-overload [error-agent context child-type parent-type]
+(defn- report-overload
+  "Reports a method is overloaded (not allowed in MiniJava)."
+  [error-agent context child-type parent-type]
   (let [msg (str "method " (:name context) " overloads parent method")]
     (report* error-agent msg (meta context))))
 
-(defn- report-return-type [error-agent context child-type parent-type]
+(defn- report-return-type
+  "Reports a method is overriden with the wrong return type."
+  [error-agent context child-type parent-type]
   (let [msg (str "method " (:name context)
                  " overrides parent method with wrong type")]
     (report* error-agent msg (meta context)
              :found    (type-str child-type)
              :required (type-str parent-type))))
 
-(defn- report-no-return [error-agent method]
+(defn- report-no-return
+  "Reports a method is missing a return statement."
+  [error-agent method]
   (let [msg (str "method " (:name method) " does not return")]
     (report* error-agent msg (meta method))))
 
-(defn- report-non-tail-return [error-agent statement]
+(defn- report-non-tail-return
+  "Reports a method returns outside the tail position."
+  [error-agent statement]
   (let [statement-type (if (= :return-statement
                               (ast/context statement))
                          "return"
@@ -122,8 +154,9 @@
 (def ^:private primitive?
   #{:int :int<> :boolean})
 
-(defn- subtype? [child parent class-table]
+(defn- subtype?
   "Returns whether or not child is a subtype of parent."
+  [child parent class-table]
   (cond
     ;; anything is a subtype of itself
     (= child parent)
@@ -139,18 +172,20 @@
         (some (partial = parent)
               (map :name parents))))))
 
-(defn- assert-type [found required context scopes error-agent]
+(defn- assert-type
   "Reports a type mismatch if the found type is not a subtype of the required
   type. If either type is nil, then the error occurred earlier, and would have
   been reported."
+  [found required context scopes error-agent]
   (when (and found
              required
              (not (subtype? found required
                             (:class-table scopes))))
     (send-off error-agent report-bad-type context found required)))
 
-(defn- assert-type-exists [type class-table context error-agent]
+(defn- assert-type-exists
   "Reports a missing type if the given type does not exist."
+  [type class-table context error-agent]
   (when-not (or (primitive?  type)
                 (class-table type))
     (send-off error-agent report-missing-type context type)))
@@ -181,6 +216,10 @@
   (throw (ex-info "Unknown context."
                   {:type :unknown-context
                    :node obj})))
+
+(defmethod info :field-declaration [field error-agent]
+  "Field declarations are always initialized."
+  (assoc field :initialized? (atom true)))
 
 (defmethod info :var-declaration [var error-agent]
   "Variable declarations are always uninitialized at first."
@@ -226,17 +265,19 @@
                         :body (:body class)}}}
     (with-meta (meta class))))
 
-(defn parent-seq [class class-table]
+(defn parent-seq
   "Returns a recursive lazy seq of all parents of the given class."
+  [class class-table]
   (lazy-seq
    (when-let [parent-name (:parent class)]
      (let [parent (class-table parent-name)]
        (cons parent (parent-seq parent class-table))))))
 
-(defn locate-var [id scopes]
+(defn locate-var
   "Locates the variable referenced by the id.
   First searches the variables local to the method, then the fields of the
   class, and finally recursively searches the fields of the parent class(es)."
+  [id scopes]
   (or (-> scopes :method :vars (get id))
       (-> scopes :class  :vars (get id))
       (loop [parents (:parents scopes)]
@@ -247,9 +288,10 @@
               var
               (recur (next parents))))))))
 
-(defn locate-method [class method-name scopes]
+(defn locate-method
   "Returns the method bound to method-name by traversing class'
   inheritance chain until it finds an implementation of the method."
+  [class method-name scopes]
   (if-let [method (get (:methods class) method-name)]
     ;; return the method if found
     method
@@ -258,9 +300,10 @@
       ;; or return nil if parent is nil
       (recur parent method-name scopes))))
 
-(defn- check-arg-count [given-args required-args error-agent]
+(defn- check-arg-count
   "Check that the number of given arguments match the number required for
   the method call."
+  [given-args required-args error-agent]
   (let [n-given    (count given-args)
         n-required (count required-args)]
     (or
@@ -269,8 +312,9 @@
       ;; wrong number of arguments given
       (send-off error-agent report-number-of-args given-args n-required))))
 
-(defn- check-arg-types [given-args required-args scopes error-agent]
-  ""
+(defn- check-arg-types
+  "Check that the given arguments are of the required types."
+  [given-args required-args scopes error-agent]
   (let [given-types (map #(type-check % scopes error-agent) given-args)
         required-types (map :type required-args)]
     (if (every? identity (map #(subtype? %1 %2 (:class-table scopes))
@@ -285,8 +329,9 @@
   (and (check-arg-count given-args required-args error-agent)
        (check-arg-types given-args required-args scopes error-agent)))
 
-(defn- shadow-check [class parents error-agent]
+(defn- shadow-check
   "Reports errors if class shadows any of its parent's fields."
+  [class parents error-agent]
   (when (seq parents)
     (let [parent-field-names
           (->> parents
@@ -302,9 +347,10 @@
             (filter identity)
             (map #(send-off error-agent report-shadow class %)))))))
 
-(defn- override-check [child-methods parents error-agent]
+(defn- override-check
   "Reports errors if class overrides one of its parent's methods without
   using the same argument and return types."
+  [child-methods parents error-agent]
   (when-let [parent (first parents)]
     (let [parent-methods         (:methods parent)
           child-method-names     (set (keys child-methods))
@@ -337,14 +383,21 @@
 
 
 
-(defmulti type-check (fn [x & args] (ast/context x)))
+(defmulti type-check
+  "Checks that each node in the AST has the appropriate type."
+  (fn [x & args] (ast/context x)))
 
 (defmethod type-check :default [node & args]
   (cond
    (= node :this)
    (let [[scopes error-agent] args
          this-class (:class scopes)]
-     (:name this-class))))
+     (:name this-class))
+
+   :else
+   (throw (ex-info "Unknown context."
+                   {:type :unknown-context
+                    :node node}))))
 
 (defmethod type-check :main-class-declaration [class scopes error-agent]
   (let [scopes (assoc scopes :class class)]
@@ -382,11 +435,15 @@
   (doseq [statement statements]
     (type-check statement scopes error-agent)))
 
-(defn- get-uninitialized [vars]
+(defn- get-uninitialized
+  "Given a map of variables, returns the set of uninitialized variables."
+  [vars]
   (set (filter (fn [[k v]] (not @(:initialized? v)))
                vars)))
 
-(defn- deinitialize [uninitialized]
+(defn- deinitialize
+  "Given a collection of initialized variables, uninitializes them."
+  [uninitialized]
   (doseq [[name var] uninitialized]
     (reset! (:initialized? var) false)))
 
@@ -421,8 +478,8 @@
         (get-uninitialized vars)
 
         either-uninitialized
-        (util/two-way-set-difference then-uninitialized
-                                     else-uninitialized)
+        (util/symmetric-set-difference then-uninitialized
+                                       else-uninitialized)
 
         _
         (deinitialize either-uninitialized)]))
@@ -436,8 +493,9 @@
         pre-uninitialized (get-uninitialized vars)]
     (type-check (:body statement) scopes error-agent)
     (let [post-uninitialized (get-uninitialized vars)
-          either-uninitialized (util/two-way-set-difference pre-uninitialized
-                                                            post-uninitialized)]
+          either-uninitialized (util/symmetric-set-difference
+                                 pre-uninitialized
+                                 post-uninitialized)]
       (deinitialize either-uninitialized))))
 
 (defmethod type-check :print-statement [statement scopes error-agent]
@@ -611,9 +669,10 @@
                  operand scopes error-agent))
   :int)
 
-(defn- locate-cyclic-class [parents visited error-agent]
+(defn- locate-cyclic-class
   "Locates the first class in parents which is also in visited.
   Reports a cyclic inheritance error."
+  [parents visited error-agent]
   (when (seq parents)
     (let [parent (first parents)
           parent-name (:name parent)]
@@ -622,10 +681,11 @@
             parent-name)
         (recur (next parents) (conj visited parent-name) error-agent)))))
 
-(defn- remove-cycles [class-table error-agent]
+(defn- remove-cycles
   "Removes inheritance cycles from the class table by iterating through
   each class in the table and removing its parent reference if it is a
   child of itself."
+  [class-table error-agent]
   (-> (fn [class-table class-name]
         (let [class (class-table class-name)
               parents (parent-seq class class-table)]
@@ -639,7 +699,12 @@
             class-table)))
    (reduce class-table (keys class-table))))
 
-(defn class-table [ast parser]
+(defn class-table
+  "Builds the class table from an AST.
+
+  The class table is just an alternate representation of the AST, with all
+  type checking resolved, and all classes accessible in a hash map."
+  [ast parser]
   (let [;; error agent keeps a count of all errors detected
         ;; errors are sent to it, and reported asynchronously
         error-agent (agent [0 parser])

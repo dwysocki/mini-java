@@ -7,6 +7,7 @@
      :name    mini-java.ErrorListener
      :extends org.antlr.v4.runtime.BaseErrorListener))
 
-(defn -syntaxError [this parser symbol line column msg exeption]
+(defn -syntaxError
   "Report a syntax error."
+  [this parser symbol line column msg exeption]
   (print-error parser msg line column))

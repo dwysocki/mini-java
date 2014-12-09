@@ -11,10 +11,17 @@ pom.xml.asc
 .lein-plugins/
 .lein-failures
 
+
 # ANTLR stuff
 
 /src/antlr/*
 !/src/antlr/*.g4
+
+
+# Marginalia stuff
+
+/doc/
+
 
 # emacs autosave
 *~

@@ -13,7 +13,7 @@
   :antlr-src-dir  "src/antlr"
   :antlr-dest-dir ""
   :java-source-paths ["src/antlr"]
-  :aot [mini-java.ErrorListener
-        mini-java.ErrorHandler]
+  :aot [mini-java.ErrorHandler
+        mini-java.ErrorListener]
   :uberjar-name "mini-javac.jar"
   :main mini-java.core)

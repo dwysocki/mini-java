@@ -10,19 +10,22 @@
                        getTokenErrorDisplay parentGetTokenErrorDisplay
                        beginErrorCondition  parentBeginErrorCondition}))
 
-(defn- expecting-str [parser exception]
+(defn- expecting-str
+  "Returns a string representation of the expected tokens."
+  [parser exception]
   (let [tokens     (.getExpectedTokens exception)
         count      (.size tokens)
         tokens-str (.toString tokens (.getTokenNames parser))
         expecting  (cond
                     (zero? count) nil
                     (= 1   count) "expecting "
-                    :default      "expecting one of ")]
+                    :else         "expecting one of ")]
     (when expecting
       (str expecting tokens-str))))
 
-(defn -reportInputMismatch [this parser exception]
+(defn -reportInputMismatch
   "Reports an input mismatch error."
+  [this parser exception]
   (let [token     (.getOffendingToken exception)
         token-str (str "'" (.getText token) "'")
         expecting (expecting-str parser exception)
@@ -31,8 +34,9 @@
               (str "unexpected " token-str))]
     (.notifyErrorListeners parser msg)))
 
-(defn -reportMissingToken [this parser]
+(defn -reportMissingToken
   "Reports a missing token."
+  [this parser]
   ;; in error recovery mode, this method does nothing
   (when-not (.inErrorRecoveryMode this parser)
     (.parentBeginErrorCondition this parser)
@@ -43,8 +47,9 @@
                               (.getTokenNames parser)))]
       (.notifyErrorListeners parser msg))))
 
-(defn -reportUnwantedToken [this parser]
+(defn -reportUnwantedToken
   "Reports an unwanted token."
+  [this parser]
   ;; in error recovery mode, this method does nothing
   (when-not (.inErrorRecoveryMode this parser)
     (.parentBeginErrorCondition this parser)
@@ -54,8 +59,9 @@
                    "' inserted")]
       (.notifyErrorListeners parser msg))))
 
-(defn -reportNoViableAlternative [this parser exception]
+(defn -reportNoViableAlternative
   "Reports an unexpected token with no viable alternative."
+  [this parser exception]
   (let [token (.getCurrentToken parser)
         context (.getContext parser)
         msg (str "unexpected " (.getText token))]

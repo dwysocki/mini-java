@@ -1,4 +1,5 @@
 (ns mini-java.core
+  "Parses command line arguments and performs the compilation process."
   (:require [mini-java.parser           :as    parser]
             [mini-java.static-semantics :as    static-semantics]
             [mini-java.code-gen         :as    code-gen]
@@ -16,16 +17,18 @@
     "Stop after static semantics checking"]
    ["-h" "--help"]])
 
-(defn usage [options-summary]
+(defn usage
   "Formats cli usage summary message."
+  [options-summary]
   (->> ["Usage: mini-javac [options] filename"
         ""
         "Options:"
         options-summary]
        (clojure.string/join \newline)))
 
-(defn error-msg [errors]
+(defn error-msg
   "Formats cli parse error message."
+  [errors]
   (str "The following errors occurred while parsing your command:\n\n"
        (clojure.string/join \newline errors)))
 

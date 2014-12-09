@@ -11,9 +11,10 @@
            [org.antlr.v4.runtime
             ANTLRFileStream CommonTokenStream]))
 
-(defn mini-java [source-file]
+(defn mini-java
   "Parse the given source file using ANTLR, and output a minimal hash-map
   representation of an AST."
+  [source-file]
   (let [input  (new ANTLRFileStream   source-file)
         lexer  (new MiniJavaLexer     input)
         tokens (new CommonTokenStream lexer)

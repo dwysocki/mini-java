@@ -12,15 +12,17 @@
 (def public-static (+ Opcodes/ACC_PUBLIC Opcodes/ACC_STATIC))
 (def obj-type (Type/getType Object))
 
-(defn- make-class-writer []
+(defn- make-class-writer
   "Instantiate an ASM ClassWriter."
+  []
   (ClassWriter. ClassWriter/COMPUTE_FRAMES))
 
 (def ^:private init
   (Method/getMethod "void <init>()"))
 
-(defn- initial-value [type]
+(defn- initial-value
   "Returns the initial value of an object field with the given type."
+  [type]
   (case type
     :int     (int 0)
     :boolean false
@@ -38,38 +40,45 @@
    :int<>   "[I",
    :boolean "Z"})
 
-(defn- type->str [type]
+(defn- type->str
   "Maps a given type to its Java type name.
+
   Input type can be a string or a primitive keyword.
   Primitives are mapped in the primitives map, and all other types are
   left as-is."
+  [type]
   (get primitives type type))
 
-(defn- type->descriptor [type]
+(defn- type->descriptor
   "Maps a given type to its ASM type descriptor.
   Primitives have specific descriptors given by primitive-descriptors,
   all other descriptors are just the type prefixed with an L, and suffixed
   with a semicolon."
+  [type]
   (or (primitive-descriptors type)
       (str "L" type ";")))
 
-(defn- type->Type [type]
+(defn- type->Type
   "Maps a type to its ASM Type object."
+  [type]
   (Type/getType (type->descriptor type)))
 
-(defn- arg-types [args]
-  ""
+(defn- arg-types
+  "Returns a comma separated list of the types of the arg list."
+  [args]
   (clojure.string/join ", "
                        (map (comp type->str :type) args)))
 
-(defn- method-signature [method]
+(defn- method-signature
   "Returns a string representation of the given method's signature.
   Method must be a class-table method representation."
+  [method]
   (str (-> method :type type->str) " " (:name method)
        "(" (arg-types (:args method)) ")"))
 
-(defn- make-method [method]
+(defn- make-method
   "Creates an ASM Method object given a class-table method representation."
+  [method]
   (Method/getMethod (method-signature method)
                     true))
 
@@ -96,10 +105,11 @@
          (.endMethod))
        init)))
 
-(defn- locate-arg [name scopes]
+(defn- locate-arg
   "Searches for the variable name in the argument list of the current method
   by searching through the scopes map. Returns the variable representation
   if found, nil otherwise."
+  [name scopes]
   (->> scopes
        :method
        :args
@@ -108,10 +118,11 @@
                     name)))
        first))
 
-(defn- locate-local [name scopes]
+(defn- locate-local
   "Searches for the variable name in the locals of the current method
   by searching through the scopes map. Returns the variable representation
   if found, nil otherwise."
+  [name scopes]
   (-> scopes
       :locals
       (get name)))
@@ -204,12 +215,13 @@
     (.visitEnd cw)
     (.toByteArray cw)))
 
-(defn- generate-local [var method-gen]
+(defn- generate-local
   "Generates the bytecode for a local variable.
 
   The method generator is informed that there is a new local, and it assigns
   to it a unique index. This index is associated with the class-table
   representation of the local, and the updated local is returned."
+  [var method-gen]
   (let [;; create the ASM Type corresponding to var
         type (type->Type (:type var))
         ;; create a new local in the method generator
@@ -217,13 +229,14 @@
     ;; store the index in the var
     (assoc var :ref-index index)))
 
-(defn- generate-locals [vars method-gen]
+(defn- generate-locals
   "Generates the bytecode for each local variable in a method, and return
   an updated map of the method's variables.
 
   This does not affect the bytecode, but gives the method generator knowledge
   of the variables, and alters the variable map to include a unique reference
   index for each variable, for lookup later."
+  [vars method-gen]
   (-> (fn [m [name var]]
         (assoc m
           name (if (:arg-index var)
@@ -396,8 +409,9 @@
   ;; return the value at the top of the stack
   (.returnValue method-gen))
 
-(defn- rebind-arg [argument index scopes method-gen]
+(defn- rebind-arg
   "Rebinds the given method argument for the recur statement."
+  [argument index scopes method-gen]
   (generate argument scopes method-gen)
   (.storeArg method-gen index))
 
@@ -440,10 +454,11 @@
   ;; load length of array reference on stack
   (.arrayLength method-gen))
 
-(defn- binary-expression [expression scopes method-gen]
+(defn- binary-expression
   "Helper function for generating the bytecode for a binary expression.
   Generates bytecode for the left hand side of the expression, then the
   right hand side of the expression."
+  [expression scopes method-gen]
   (generate (:left  expression) scopes method-gen)
   (generate (:right expression) scopes method-gen))
 
@@ -487,9 +502,10 @@
       (.push true)
       (.mark end-label))))
 
-(defn- unary-expression [expression scopes method-gen]
+(defn- unary-expression
   "Helper function for generating the bytecode for a unary expression.
   Generates the bytecode for the operand."
+  [expression scopes method-gen]
   (generate (:operand expression) scopes method-gen))
 
 (defmethod generate :not-expression [expression scopes method-gen]
@@ -574,16 +590,18 @@
       (.dup)
       (.invokeConstructor type init))))
 
-(defn- write-class [name directory bytes]
+(defn- write-class
   "Writes the bytecode of a single class to a file in the given directory."
+  [name directory bytes]
   (with-open [o (->> (str name ".class")
                      (clojure.java.io/file directory)
                      clojure.java.io/output-stream)]
     (.write o bytes)))
 
-(defn write-classes [class-table directory]
+(defn write-classes
   "Generates and writes the bytecode of each class in the class table to
   files in the given directory."
+  [class-table directory]
   (let [scopes {:class-table class-table}]
     (doseq [[name class] class-table]
       (write-class name directory (generate class scopes)))))
