@@ -1,3 +1,8 @@
+---
+layout: page
+title: MiniJava
+---
+
 # mini-java
 
 A MiniJava compiler implemented in Clojure. This was a semester-long project
