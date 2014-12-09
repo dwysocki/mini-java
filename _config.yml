@@ -5,3 +5,4 @@ url: "http://dwysocki.github.io/mini-java/"
 github_username: dwysocki
 
 markdown: kramdown
+  input: GFM
