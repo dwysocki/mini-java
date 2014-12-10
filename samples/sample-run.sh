@@ -1,6 +1,5 @@
 #!/bin/bash
 
-__compilers__="mini-javac javac"
 function compile {
     __cmd1=$1
     __cmd2=$2
