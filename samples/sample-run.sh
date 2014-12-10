@@ -41,11 +41,4 @@ do
     fname=$(basename "$f")
     class=$(basename "$f" .java)
     compile_switch $1 $f $class
-            
-#    cmd1="java -jar ../target/mini-javac.jar -d target $f"
-#    cmd2="java -cp target $class"
-#    cmdstr="${cmd1} &&\n${cmd2}"
-#    cmd="${cmd1} && ${cmd2}"
-#    echo -e $cmdstr
-#    eval $cmd
 done
