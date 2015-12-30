@@ -133,7 +133,9 @@ expression
     |   expression '*'  expression
     # mulExpression
     |   expression '<'  expression
-    # ltExpression  
+    # ltExpression
+    |   expression '>'  expression
+    # gtExpression
     |   expression '&&' expression
     # andExpression
     |   INT

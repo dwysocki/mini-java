@@ -572,6 +572,10 @@
   (binary-op-type-check expression :int scopes error-agent)
   :boolean)
 
+(defmethod type-check :gt-expression [expression scopes error-agent]
+  (binary-op-type-check expression :int scopes error-agent)
+  :boolean)
+
 (defmethod type-check :add-expression [expression scopes error-agent]
   (binary-op-type-check expression :int scopes error-agent)
   :int)

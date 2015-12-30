@@ -301,6 +301,9 @@
 (defmethod ast :lt-expression [node]
   (binary-expression node))
 
+(defmethod ast :gt-expression [node]
+  (binary-expression node))
+
 (defmethod ast :add-expression [node]
   (binary-expression node))
 

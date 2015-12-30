@@ -502,6 +502,23 @@
       (.push true)
       (.mark end-label))))
 
+(defmethod generate :gt-expression [expression scopes method-gen]
+  "Generates the bytecode for a greater than expression."
+  (let [true-label (.newLabel method-gen)
+        end-label  (.newLabel method-gen)]
+    (binary-expression expression scopes method-gen)
+    (doto method-gen
+      ;; compare the top two values on the stack
+      (.ifCmp Type/INT_TYPE GeneratorAdapter/GT true-label)
+      ;; not greater than, push false and goto end
+      (.push false)
+      (.goTo end-label)
+      ;; less than, jump to true label
+      (.mark true-label)
+      ;; push true and fall off end
+      (.push true)
+      (.mark end-label))))
+
 (defn- unary-expression
   "Helper function for generating the bytecode for a unary expression.
   Generates the bytecode for the operand."
